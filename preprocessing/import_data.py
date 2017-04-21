@@ -81,6 +81,18 @@ def import_call_incidence_data_of_2016(input_call_incidence_file):
             print "finish 2nd stage"
     print("import call 122 finished!")
 
+def import_violation_data(input_file_path):
+    csvfile = open(input_file_path,"rb")
+    reader = csv.reader(csvfile)
+    for row in reader:
+        lng = float(row[1]) if row[1]!='' else 0.0
+        lat = float(row[2]) if row[2]!='' else 0.0
+        if lng < 120 and lng > 100 and lat > 30 and lat < 45:
+            dt = datetime.datetime.strptime(row[0], "%Y/%m/%d %H:%M")
+            #print "lng: %f\tlat: %f\n" % (lng, lat)
+            violation = Violation(create_time = dt,latitude = lat, longitude = lng)
+            violation.save()
+    print "import violation data sucess!"
 if __name__ == "__main__":
     for i in range(10,11):
         input_call_incidence_file = "/Users/Ren/PycharmProjects/PoliceIndex/beijing_data/2016_accidents/"+str(i)+".xls"

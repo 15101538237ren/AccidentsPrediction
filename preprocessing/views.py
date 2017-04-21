@@ -11,5 +11,8 @@ def import_data_to_db():
     for i in i_list:
         input_call_incidence_file = "/Users/Ren/PycharmProjects/PoliceIndex/beijing_data/2017/shuju/122_17_0"+str(i)+"_cleaned.xls"
         import_call_incidence_data_of_2016(input_call_incidence_file=input_call_incidence_file)
+
+    input_violation_file = '/Users/Ren/Desktop/violation.csv'
+    import_violation_data(input_violation_file)
 def index(request):
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
