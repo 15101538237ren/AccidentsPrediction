@@ -2,6 +2,8 @@
 import scrapy,datetime,calendar,re,urllib,os
 from scrapy.selector import HtmlXPathSelector
 
+wrt_file_path = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/weather.csv'
+
 def add_months(dt,months):
     month = dt.month - 1 + months
     year = dt.year + month / 12
@@ -21,12 +23,11 @@ class WeatherSpider(scrapy.Spider):
         date_str = date_now.strftime("%Y%m")
         url_str = 'http://lishi.tianqi.com/beijing/'+date_str+'.html'
         start_urls.append(url_str)
-
+    if os.path.exists(wrt_file_path):
+       os.remove(wrt_file_path)
     def parse(self, response):
 
        hxs = HtmlXPathSelector(response)#创建查询对象
-
-       wrt_file_path = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/weather.csv'
        out_file = open(wrt_file_path,"a")
        # 如果url是 http://www.xiaohuar.com/list-1-\d+.html
        if re.match('http://lishi.tianqi.com/beijing/\d+.html', response.url): #如果url能够匹配到需要爬取的url，即本站url
