@@ -20,5 +20,7 @@ def import_data_to_db():
     air_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/air.csv'
     import_air_quality_to_db(air_file)
 def index(request):
-    get_liuhuan_poi()
+    min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi()
+
+
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
