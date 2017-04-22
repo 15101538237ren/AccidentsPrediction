@@ -93,6 +93,8 @@ def import_violation_data(input_file_path):
             violation = Violation(create_time = dt,latitude = lat, longitude = lng)
             violation.save()
     print "import violation data sucess!"
+def import_weather_to_db(input_file_path):
+    pass
 if __name__ == "__main__":
     for i in range(10,11):
         input_call_incidence_file = "/Users/Ren/PycharmProjects/PoliceIndex/beijing_data/2016_accidents/"+str(i)+".xls"
