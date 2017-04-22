@@ -41,6 +41,6 @@ class WeatherSpider(scrapy.Spider):
                lt = hxs.xpath(base_xpath +'[' + str(i) +']/li[3]/text()').extract()[0]
                weather = hxs.xpath(base_xpath +'[' + str(i) +']/li[4]/text()').extract()[0]
                wind_scale = hxs.xpath(base_xpath +'[' + str(i) +']/li[6]/text()').extract()[0]
-               out_str = u"%s\t%s\t%s\t%s\t%s\n" % (dt,ht,lt,weather,wind_scale)
+               out_str = u"%s,%s,%s,%s,%s\n" % (dt,ht,lt,weather,wind_scale)
                out_file.write(out_str.encode('utf-8'))
        out_file.close()

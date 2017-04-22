@@ -34,7 +34,7 @@ class Weather(models.Model):
     date_w = models.DateField('日期')
     highest_temperature = models.IntegerField('最高气温')
     lowest_temperature = models.IntegerField('最低气温')
-    wind = models.IntegerField('风力')
+    wind = models.DecimalField('风力',max_digits=5, decimal_places=2)
     weather_severity = models.DecimalField('天气严重性', max_digits = 5, decimal_places = 3)
     weather_desc = models.TextField('天气描述')
     def __unicode__(self):

@@ -4,6 +4,13 @@ from models import *
 from preprocessing.baidumap import BaiduMap
 reload(sys)
 sys.setdefaultencoding('utf8')
+
+weather_severity = {u"晴":0, u"浮尘":0, u"阴":0, u"多云":0, u"霾":1, u"雾":1, u"小雨":2, u"阵雨":2, u"雷阵雨":2, u"中雨":3, u"小雪":3, u"大雨":4, u"雨夹雪":4, u"暴雨":4, u"中雪":5, u"大雪":5}
+
+def unicode_csv_reader(gbk_data, dialect=csv.excel, **kwargs):
+    csv_reader = csv.reader(gbk_data, dialect=dialect, **kwargs)
+    for row in csv_reader:
+        yield [unicode(cell, 'utf-8') for cell in row]
 # 获取excel的列对应的数字编号
 def get_excel_index():
     excel_index_list = [chr(i) for i in range(65,91)]
@@ -93,8 +100,55 @@ def import_violation_data(input_file_path):
             violation = Violation(create_time = dt,latitude = lat, longitude = lng)
             violation.save()
     print "import violation data sucess!"
+def handle_wind(wind_desc):
+    wind_desc = wind_desc.replace(u"级", u"").replace(u"小于", u"")
+    wind_arr = wind_desc.split("-")
+    if len(wind_arr) == 2:
+        wind1 = int(wind_arr[0])
+        wind2 = int(wind_arr[1])
+        wind = (wind1 + wind2) / 2.0
+    else:
+        wind = float(wind_arr[0]) if wind_arr[0]!=u"微风" else 1.0
+    return wind
+def convert_to_weather_severity(weather_desc):
+    weather_desc = weather_desc.replace(u"转", u"~")
+    weather_arr = weather_desc.split(u"到")
+    if len(weather_arr) == 1:
+        weather_arr = weather_arr[0].split("~")
+        if len(weather_arr) == 1:
+            ws = float(weather_severity[weather_arr[0]])
+        else:
+            ws = 0.5 * (weather_severity[weather_arr[0]]+ weather_severity[weather_arr[1]])
+    else:
+        weather_0 = weather_arr[0] + weather_arr[1][-1]
+        weather_1 = weather_arr[1]
+        ws = 0.5 * (weather_severity[weather_0]+ weather_severity[weather_1])
+    return ws
 def import_weather_to_db(input_file_path):
-    pass
+    reader = unicode_csv_reader(open(input_file_path,"rb"))
+    for row in reader:
+        dt = datetime.datetime.strptime(row[0], "%Y-%m-%d")
+        dt2 = dt.date()
+        ht = int(row[1])
+        lt = int(row[2])
+        weather_desc = row[3]
+        ws = convert_to_weather_severity(weather_desc)
+        wind = handle_wind(row[4])
+        #print "dt: %s, ht: %d, lt:%d, wd: %s, ws: %.2f, wind:%.2f\n" %(row[0],ht,lt,weather_desc,ws,wind)
+        weather = Weather(date_w = dt2, highest_temperature= ht, lowest_temperature= lt, wind= wind, weather_desc=weather_desc, weather_severity = ws)
+        weather.save()
+    print "import weather success!"
+def import_air_quality_to_db(input_file_path):
+    csvfile = open(input_file_path,"rb")
+    reader = csv.reader(csvfile)
+    for row in reader:
+        dt = datetime.datetime.strptime(row[0], "%Y-%m-%d")
+        dt2 = dt.date()
+        aqi = int(row[1])
+        pm25 = int(row[2])
+        air_quality = Air_Quality(date_a= dt2, aqi= aqi, pm25= pm25)
+        air_quality.save()
+    print "import air quality success!"
 if __name__ == "__main__":
     for i in range(10,11):
         input_call_incidence_file = "/Users/Ren/PycharmProjects/PoliceIndex/beijing_data/2016_accidents/"+str(i)+".xls"

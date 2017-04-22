@@ -31,7 +31,7 @@ class AirSpider(scrapy.Spider):
                dt = hxs.xpath(base_xpath +'[' + str(i) +']/li[1]/a/text()').extract()[0]
                aqi = hxs.xpath(base_xpath +'[' + str(i) +']/li[2]/text()').extract()[0]
                pm25 = hxs.xpath(base_xpath +'[' + str(i) +']/li[3]/text()').extract()[0]
-               out_str = u"%s\t%s\t%s\n" % (dt,aqi,pm25)
+               out_str = u"%s,%s,%s\n" % (dt,aqi,pm25)
                #print out_str
                out_file.write(out_str.encode('utf-8'))
        out_file.close()

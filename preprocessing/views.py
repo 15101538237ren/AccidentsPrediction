@@ -14,5 +14,9 @@ def import_data_to_db():
 
     input_violation_file = '/Users/Ren/Desktop/violation.csv'
     import_violation_data(input_violation_file)
+    weather_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/weather.csv'
+    import_weather_to_db(weather_file)
+    air_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/air.csv'
+    import_air_quality_to_db(air_file)
 def index(request):
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
