@@ -29,14 +29,6 @@
     map.addControl(top_left_control);
     map.addControl(top_left_navigation);
     map.enableKeyboard();
-
-
-	var rectangle = new BMap.Polygon([
-		new BMap.Point({{ min_lng }},{{ min_lat }}),
-		new BMap.Point({{ max_lng }},{{ min_lat }}),
-		new BMap.Point({{ max_lng }},{{ max_lat }}),
-		new BMap.Point({{ min_lng }},{{ max_lat }})
-	], {strokeColor:"red", strokeWeight:2, strokeOpacity:1,fillColor:''});  //创建矩形
-    map.addOverlay(rectangle);
 </script>
+<script type="text/javascript" src="{% static "js/grid.js" %}"></script>
 {% endblock %}
