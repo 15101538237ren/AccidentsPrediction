@@ -107,7 +107,10 @@ def generate_grid_ids(lng_coors, lat_coors):
     return grids
 def label_geo_points(geo_points, d_lat, d_lng, n_lng, n_lat):
     geo_cnts = [0 for i in range(n_lat * n_lng)]
-    for lat,lng in geo_points:
+    for geo_point in geo_points:
+        lng = geo_point[0]
+        lat = geo_point[1]
+
         if (not (min_lng <= lng and lng <= max_lng and min_lat <= lat and lat <= max_lat)):
             continue
         else:
