@@ -4,4 +4,5 @@ from .views import *
 
 urlpatterns = patterns('preprocessing.views',
  url(r'^index$','index',name='index'),
+ url(r'^grid','grid',name='grid'),
 )

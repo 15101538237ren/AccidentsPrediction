@@ -20,6 +20,8 @@ def import_data_to_db():
     air_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/air.csv'
     import_air_quality_to_db(air_file)
 def index(request):
+    return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
+def grid(request):
     out_data_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/grid_polyline.js'
     min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file)
-    return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
+    return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
