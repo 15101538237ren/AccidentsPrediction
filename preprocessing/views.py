@@ -25,3 +25,5 @@ def grid(request):
     out_data_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/grid_polyline.js'
     min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file)
     return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
+def timeline(request):
+    return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
