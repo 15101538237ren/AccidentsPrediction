@@ -2,7 +2,7 @@
 from django.shortcuts import render_to_response
 from django.template import RequestContext
 from import_data import *
-from util import get_liuhuan_poi,generate_grid_for_beijing
+from util import *
 # Create your views here.
 def import_data_to_db():
     i = 11
@@ -23,7 +23,11 @@ def index(request):
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 def grid(request):
     out_data_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/grid_polyline.js'
-    min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file)
+    sep = 500
+    min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file, sep= sep)
     return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
 def timeline(request):
+    outpkl_file_path = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/accidents.pkl'
+    #partition_geopoints_by_time(outpkl_file_path)
+    #get_all_accidents_from_db(outpkl_file_path)
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
