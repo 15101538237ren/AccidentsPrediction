@@ -133,7 +133,12 @@ def convert_point_to_point_collection(input_file_path, output_file_path):
 
     output_file.write(wrt_str)
     output_file.close()
-def label_all_function_regions(input_region_files, d_lat, d_lng, n_lng, n_lat):
+def label_all_function_regions(input_region_files,**params):
+    d_lat = params['d_lat']
+    d_lng = params['d_lng']
+    n_lng = params['n_lng']
+    n_lat = params['n_lat']
+    d_len = params['d_len']
     geo_cnts = []
     for idx, input_region_file in enumerate(input_region_files):
         print "labeling %s" % input_region_file
@@ -155,6 +160,12 @@ def label_all_function_regions(input_region_files, d_lat, d_lng, n_lng, n_lat):
 
                 id = i_lng * n_lat + j_lat
                 geo_cnts[idx][id] += 1
+        # print "idx:%d, len_geo_cnt:%d" % (idx,len(geo_cnts[idx]))
+        geo_cnts_str = [str(item) for item in geo_cnts[idx]]
+        geo_cnts_concat = ','.join(geo_cnts_str)
+        # print "len_str %d" % len(geo_cnts_concat)
+        region_function = Region_Function(spatial_interval = d_len, region_type = idx + 1, region_cnt_matrix = geo_cnts_concat)
+        region_function.save()
         print "finish labeling %s" % input_region_file
     print "finish all"
 def generate_grid_ids(lng_coors, lat_coors):
@@ -192,7 +203,12 @@ def label_geo_points(geo_points, d_lat, d_lng, n_lng, n_lat):
             id = i_lng * n_lat + j_lat
             geo_cnts[id] += 1
     return geo_cnts
-def label_all_accidents(input_pickle_file, d_lat, d_lng, n_lng, n_lat, interval = 60, dlen = 500):
+def label_all_accidents(input_pickle_file,interval, **params):
+    d_lat = params['d_lat']
+    d_lng = params['d_lng']
+    n_lng = params['n_lng']
+    n_lat = params['n_lat']
+    d_len = params['d_len']
     time_list, accidents_of_all = partition_geopoints_by_time(input_pickle_file,interval = interval)
     print "start labeling"
     for time_now in time_list:
@@ -230,7 +246,7 @@ def label_all_accidents(input_pickle_file, d_lat, d_lng, n_lng, n_lat, interval 
         else:
             time_segment = NIGHT
 
-        accidents_array = Accidents_Array(time_interval= interval, spatial_interval = dlen, create_time = time_now_dt, content = geo_cnts_concat, highest_temperature= weather.highest_temperature, lowest_temperature=weather.lowest_temperature, wind=weather.wind, weather_severity=weather.weather_severity, aqi=air_quality.aqi, pm25= air_quality.pm25, is_holiday=holiday, is_weekend=weekend, time_segment= time_segment)
+        accidents_array = Accidents_Array(time_interval= interval, spatial_interval = d_len, create_time = time_now_dt, content = geo_cnts_concat, highest_temperature= weather.highest_temperature, lowest_temperature=weather.lowest_temperature, wind=weather.wind, weather_severity=weather.weather_severity, aqi=air_quality.aqi, pm25= air_quality.pm25, is_holiday=holiday, is_weekend=weekend, time_segment= time_segment)
         accidents_array.save()
     print "finish labeling"
 def get_all_accidents_from_db(output_pickle):

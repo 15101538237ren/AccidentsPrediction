@@ -23,14 +23,13 @@ def index(request):
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 def grid(request):
     out_data_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/grid_polyline.js'
-    sep = 1000
+    sep = 500
     min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file, sep= sep)
     return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
 def timeline(request):
     outpkl_file_path = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/accidents.pkl'
     #partition_geopoints_by_time(outpkl_file_path)
     #get_all_accidents_from_db(outpkl_file_path)
-    #label_all_accidents(outpkl_file_path, 0.0084, 0.012, 28, 31, interval= 60, dlen=1000)
     keywords = [u"交通设施", u"住宿", u"医院", u"商务住宅_公司", u"商场超市", u"娱乐场所", u"学校", u"旅游景点", u"生活服务", u"自住住宅", u"银行金融", u"餐饮"]
     input_file_list = []
     #keyword = u"医院"
@@ -42,5 +41,20 @@ def timeline(request):
     #get_pois_from_gaode(code, output_file)
     out_js = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/point_collection.js'
     #convert_point_to_point_collection(output_file, out_js)
-    #label_all_function_regions(input_file_list, 0.0084, 0.012, 28, 31)
+
+    param_500 = {}
+    param_500['d_len'] = 500
+    param_500['d_lat'] = 0.0042
+    param_500['d_lng'] = 0.006
+    param_500['n_lng'] = 56
+    param_500['n_lat'] = 62
+
+    param_1000 = {}
+    param_1000['d_len'] = 1000
+    param_1000['d_lat'] = 0.0084
+    param_1000['d_lng'] = 0.012
+    param_1000['n_lng'] = 28
+    param_1000['n_lat'] = 31
+    # label_all_function_regions(input_file_list,**param_1000)
+    label_all_accidents(outpkl_file_path, 60, **param_500)
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
