@@ -32,9 +32,11 @@ def timeline(request):
     #get_all_accidents_from_db(outpkl_file_path)
     #label_all_accidents(outpkl_file_path,0.0084, 0.012, 28, 31, interval= 60, dlen=1000)
     keyword = u"医院"
-    code = '0901|0902'
+    #code = '0901|0902'
     #industry_type = u"cater"
-    output_file = u"/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/" + keyword + u".csv"
+    output_file = u"/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/poi/" + keyword + u".csv"
     #get_pois_from_baidu(keyword, industry_type, output_file)
-    get_pois_from_gaode(code, output_file)
+    #get_pois_from_gaode(code, output_file)
+    out_js = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/point_collection.js'
+    convert_point_to_point_collection(output_file, out_js)
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))

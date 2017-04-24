@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys,os,requests,urllib,json,math,pickle,datetime
 from  models import Call_Incidence
+from import_data import unicode_csv_reader
 reload(sys)
 sys.setdefaultencoding('utf8')
 ## 六环
@@ -14,6 +15,8 @@ min_lat = 39.764427
 max_lat = 40.028983
 min_lng = 116.214834
 max_lng = 116.554975
+x_pi = math.pi * 3000.0 / 180.0
+
 def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
     output_file = open(output_file_path,"w")
     cnt = 0
@@ -87,7 +90,39 @@ def partition_geopoints_by_time(input_pickle_path,interval = 60):
             accidents_of_all[now_time_str].append([accidents[i].longitude, accidents[i].latitude])
     print "finish partition points by time!"
     return time_list,accidents_of_all
+#将国测局坐标转成百度坐标
+def gcj2bd(point):
+    x = point[0]
+    y = point[1]
+    z = math.sqrt(x * x + y * y) + 0.00002 * math.sin(y * x_pi)
+    theta = math.atan2(y, x) + 0.000003 * math.cos(x * x_pi)
+    return z * math.cos(theta) + 0.0065, z * math.sin(theta) + 0.006
+def convert_point_to_point_collection(input_file_path, output_file_path):
+    reader = unicode_csv_reader(open(input_file_path,"rb"))
+    data = {}
+    data["data"] = []
+    data["errorno"] = 0
+    data["NearestTime"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data["userTime"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for row in reader:
+        point = [float(row[2]), float(row[3])]
+        point_converted = gcj2bd(point)
+        data["data"].append([point_converted[0], point_converted[1], 1])
+        #print row[0]
 
+    data["total"] = len(data["data"])
+    data["rt_loc_cnt"] = len(data["data"])
+    output_file = open(output_file_path, "w")
+    pre = "var data = "
+    output_file.write(pre)
+
+    wrt_str = json.dumps(data)
+    print wrt_str
+
+    output_file.write(wrt_str)
+    output_file.close()
+def label_all_function_regions(region_names,):
+    pass
 def generate_grid_ids(lng_coors, lat_coors):
     #len: n_lat * n_lng - 1
 
