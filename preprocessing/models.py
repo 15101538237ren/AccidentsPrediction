@@ -47,22 +47,6 @@ class Air_Quality(models.Model):
     def __unicode__(self):
         return u'日期:'+str(self.date_a) + u',AQI:'+str(self.aqi) + u', PM2.5:' + str(self.pm25) +u'\n'
 class Accidents_Array(models.Model):
-    time_interval = models.IntegerField('时间间隔/min')
-    spatial_interval = models.IntegerField('空间间隔/m')
-    create_time = models.DateTimeField('时间区间')
-    content = models.TextField('事故内容')
-
-    highest_temperature = models.IntegerField('最高气温')
-    lowest_temperature = models.IntegerField('最低气温')
-    wind = models.DecimalField('风力',max_digits=5, decimal_places=2)
-    weather_severity = models.DecimalField('天气严重性', max_digits = 5, decimal_places = 3)
-
-    aqi = models.IntegerField('空气质量指数AQI')
-    pm25 = models.IntegerField('PM2.5')
-
-    is_holiday = models.BooleanField('是否节假日')
-    is_weekend = models.BooleanField('是否周末')
-
     DAWN = 0
     MORNING_RUSH = 1
     MORNING_WORKING = 2
@@ -81,7 +65,43 @@ class Accidents_Array(models.Model):
         (NIGHT,"晚间"),
 
     )
-    time_segment = models.SmallIntegerField(choices= TIME_SEG_TYPE)
+
+    time_interval = models.IntegerField('时间间隔/min')
+    spatial_interval = models.IntegerField('空间间隔/m')
+    create_time = models.DateTimeField('时间区间')
+    content = models.TextField('事故内容')
+
+    highest_temperature = models.IntegerField('最高气温')
+    lowest_temperature = models.IntegerField('最低气温')
+    wind = models.DecimalField('风力',max_digits=5, decimal_places=2)
+    weather_severity = models.DecimalField('天气严重性', max_digits = 5, decimal_places = 3)
+
+    aqi = models.IntegerField('空气质量指数AQI')
+    pm25 = models.IntegerField('PM2.5')
+
+    is_holiday = models.BooleanField('是否节假日')
+    is_weekend = models.BooleanField('是否周末')
+    time_segment = models.SmallIntegerField('时间段', choices= TIME_SEG_TYPE)
+
+class Region_Function(models.Model):
+    REGION_TYPE = (
+        (1,"交通设施"),
+        (2,"住宿"),
+        (3,"医院"),
+        (4,"商务住宅_公司"),
+        (5,"商场超市"),
+        (6,"娱乐场所"),
+        (7,"学校"),
+        (8,"旅游景点"),
+        (9,"生活服务"),
+        (10,"自住住宅"),
+        (11,"银行金融"),
+        (12,"餐饮"),
+
+    )
+    spatial_interval = models.IntegerField('空间间隔/m')
+    region_type = models.SmallIntegerField('区域类型',choices= REGION_TYPE)
+    region_cnt_matrix = models.TextField('区域内容')
 
 
 
