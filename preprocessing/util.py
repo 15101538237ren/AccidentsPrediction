@@ -17,6 +17,14 @@ min_lng = 116.214834
 max_lng = 116.554975
 x_pi = math.pi * 3000.0 / 180.0
 
+DAWN = 0
+MORNING_RUSH = 1
+MORNING_WORKING = 2
+NOON = 3
+AFTERNOON_WORK = 4
+AFTERNOON_RUSH = 5
+NIGHT = 6
+
 #节假日list: 2016-1-1 ~ 2017-2-28
 holiday_str_list = ["2016-01-01","2016-01-02","2016-01-03","2016-02-07","2016-02-08","2016-02-09","2016-02-10","2016-02-11","2016-02-12","2016-02-13","2016-04-02","2016-04-03","2016-04-04","2016-04-30","2016-05-01","2016-05-02","2016-06-09","2016-06-10","2016-06-11","2016-09-15","2016-09-16","2016-09-17","2016-10-01","2016-10-02","2016-10-03","2016-10-04","2016-10-05","2016-10-06","2016-10-07","2016-12-31","2017-01-01","2017-01-02","2017-01-27","2017-01-28","2017-01-29","2017-01-30","2017-01-31","2017-02-01","2017-02-02"]
 
@@ -70,7 +78,7 @@ def partition_geopoints_by_time(input_pickle_path,interval = 60):
     accidents = pickle.load(path_pkl_file)
     print "finish load!"
     start_dt = datetime.datetime.strptime("2016-01-01 00:00:00","%Y-%m-%d %H:%M:%S")
-    end_dt = datetime.datetime.strptime("2016-01-03 00:00:00","%Y-%m-%d %H:%M:%S")
+    end_dt = datetime.datetime.strptime("2017-03-01 00:00:00","%Y-%m-%d %H:%M:%S")
     time_delta = datetime.timedelta(minutes= interval)
     temp_time = start_dt
     temp_time_str = temp_time.strftime("%Y-%m-%d %H:%M")
@@ -188,6 +196,7 @@ def label_all_accidents(input_pickle_file, d_lat, d_lng, n_lng, n_lat, interval 
     time_list, accidents_of_all = partition_geopoints_by_time(input_pickle_file,interval = interval)
     print "start labeling"
     for time_now in time_list:
+        print time_now
         geo_points = accidents_of_all[time_now]
         geo_cnts = label_geo_points(geo_points, d_lat, d_lng, n_lng, n_lat)
         geo_cnts_str = [str(item) for item in geo_cnts]
@@ -200,13 +209,35 @@ def label_all_accidents(input_pickle_file, d_lat, d_lng, n_lng, n_lat, interval 
             holiday = True
         else:
             holiday = False
-        accidents_array = Accidents_Array(time_interval= interval, spatial_interval = dlen, create_time = time_now_dt, content = geo_cnts_concat, highest_temperature= weather.highest_temperature, lowest_temperature=weather.lowest_temperature, wind=weather.wind, weather_severity=weather.weather_severity, aqi=air_quality.aqi, pm25= air_quality.pm25, is_holiday=holiday)
+        weekend = False
+        t_weekday = time_now_dt.weekday()
+        if (t_weekday == 4 and time_now_dt.hour >= 17) or (t_weekday in [5, 6]):
+            weekend = True
+
+        t_hour = time_now_dt.hour
+        if  t_hour>= 0 and t_hour < 7:
+            time_segment = DAWN
+        elif t_hour >=7 and t_hour < 9:
+            time_segment = MORNING_RUSH
+        elif t_hour >=9 and t_hour < 12:
+            time_segment = MORNING_WORKING
+        elif t_hour >=12 and t_hour < 14:
+            time_segment = NOON
+        elif t_hour >=14 and t_hour < 17:
+            time_segment = AFTERNOON_WORK
+        elif t_hour>= 17 and t_hour < 20:
+            time_segment = AFTERNOON_RUSH
+        else:
+            time_segment = NIGHT
+
+        accidents_array = Accidents_Array(time_interval= interval, spatial_interval = dlen, create_time = time_now_dt, content = geo_cnts_concat, highest_temperature= weather.highest_temperature, lowest_temperature=weather.lowest_temperature, wind=weather.wind, weather_severity=weather.weather_severity, aqi=air_quality.aqi, pm25= air_quality.pm25, is_holiday=holiday, is_weekend=weekend, time_segment= time_segment)
+        accidents_array.save()
     print "finish labeling"
 def get_all_accidents_from_db(output_pickle):
     outfile = open(output_pickle, 'wb')
     print "query start!"
     start_dt = datetime.datetime.strptime("2016-01-01 00:00:00","%Y-%m-%d %H:%M:%S")
-    end_dt = datetime.datetime.strptime("2016-01-03 00:00:00","%Y-%m-%d %H:%M:%S")
+    end_dt = datetime.datetime.strptime("2017-03-01 00:00:00","%Y-%m-%d %H:%M:%S")
     accidents = Call_Incidence.objects.filter(create_time__range=[start_dt, end_dt]).order_by("create_time")
     print "query finish!"
     print "before: %d" % len(accidents)

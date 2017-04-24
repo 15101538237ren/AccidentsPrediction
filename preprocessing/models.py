@@ -51,7 +51,7 @@ class Accidents_Array(models.Model):
     MORNING_RUSH = 1
     MORNING_WORKING = 2
     NOON = 3
-    AFTERNOON = 4
+    AFTERNOON_WORK = 4
     AFTERNOON_RUSH = 5
     NIGHT = 6
 
@@ -60,7 +60,7 @@ class Accidents_Array(models.Model):
         (MORNING_RUSH,"早高峰"),
         (MORNING_WORKING,"早工作"),
         (NOON,"中午休息"),
-        (AFTERNOON,"下午工作"),
+        (AFTERNOON_WORK,"下午工作"),
         (AFTERNOON_RUSH,"下午高峰"),
         (NIGHT,"晚间"),
 
