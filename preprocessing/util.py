@@ -121,8 +121,30 @@ def convert_point_to_point_collection(input_file_path, output_file_path):
 
     output_file.write(wrt_str)
     output_file.close()
-def label_all_function_regions(region_names,):
-    pass
+def label_all_function_regions(input_region_files, d_lat, d_lng, n_lng, n_lat):
+    geo_cnts = []
+    for idx, input_region_file in enumerate(input_region_files):
+        print "labeling %s" % input_region_file
+        geo_cnts.append([0 for i in range(n_lat * n_lng)])
+
+        reader = unicode_csv_reader(open(input_region_file,"rb"))
+        for row in reader:
+            #先经度, 后纬度
+            point = [float(row[2]), float(row[3])]
+            point_converted = gcj2bd(point)
+            lng = point_converted[0]
+            lat = point_converted[1]
+
+            if (not (min_lng <= lng and lng <= max_lng and min_lat <= lat and lat <= max_lat)):
+                continue
+            else:
+                j_lat = int(math.ceil((float(lat) - min_lat)/d_lat)) - 2
+                i_lng = int(math.ceil((float(lng) - min_lng)/d_lng)) - 2
+
+                id = i_lng * n_lat + j_lat
+                geo_cnts[idx][id] += 1
+        print "finish labeling %s" % input_region_file
+    print "finish all"
 def generate_grid_ids(lng_coors, lat_coors):
     #len: n_lat * n_lng - 1
 
