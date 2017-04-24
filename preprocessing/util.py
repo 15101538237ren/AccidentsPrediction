@@ -63,14 +63,17 @@ def partition_geopoints_by_time(input_pickle_path,interval = 60):
     accidents = pickle.load(path_pkl_file)
     print "finish load!"
     start_dt = datetime.datetime.strptime("2016-01-01 00:00:00","%Y-%m-%d %H:%M:%S")
-    end_dt = datetime.datetime.strptime("2017-03-01 00:00:00","%Y-%m-%d %H:%M:%S")
+    end_dt = datetime.datetime.strptime("2016-01-03 00:00:00","%Y-%m-%d %H:%M:%S")
     time_delta = datetime.timedelta(minutes= interval)
     temp_time = start_dt
     temp_time_str = temp_time.strftime("%Y-%m-%d %H:%M")
     accidents_of_all = {}
+    time_list = []
     while temp_time < end_dt:
         accidents_of_all[temp_time_str] = []
+        time_list.append(temp_time_str)
         temp_time = temp_time + time_delta
+        temp_time_str = temp_time.strftime("%Y-%m-%d %H:%M")
     now_time = start_dt
     now_time_str = now_time.strftime("%Y-%m-%d %H:%M")
 
@@ -83,7 +86,7 @@ def partition_geopoints_by_time(input_pickle_path,interval = 60):
             now_time_str = now_time.strftime("%Y-%m-%d %H:%M")
             accidents_of_all[now_time_str].append([accidents[i].longitude, accidents[i].latitude])
     print "finish partition points by time!"
-    return accidents_of_all
+    return time_list,accidents_of_all
 
 def generate_grid_ids(lng_coors, lat_coors):
     #len: n_lat * n_lng - 1
@@ -114,16 +117,28 @@ def label_geo_points(geo_points, d_lat, d_lng, n_lng, n_lat):
         if (not (min_lng <= lng and lng <= max_lng and min_lat <= lat and lat <= max_lat)):
             continue
         else:
-            j_lat = int(math.ceil((lat - min_lat)/d_lat)) - 1
-            i_lng = int(math.ceil((lng - min_lng)/d_lng)) - 1
+            j_lat = int(math.ceil((float(lat) - min_lat)/d_lat)) - 2
+            i_lng = int(math.ceil((float(lng) - min_lng)/d_lng)) - 2
 
             id = i_lng * n_lat + j_lat
             geo_cnts[id] += 1
     return geo_cnts
+def label_all_accidents(input_pickle_file, d_lat, d_lng, n_lng, n_lat, interval = 60):
+    time_list, accidents_of_all = partition_geopoints_by_time(input_pickle_file,interval = interval)
+    accidents_arr = {}
+    print "start labeling"
+    for time_now in time_list:
+        geo_points = accidents_of_all[time_now]
+        geo_cnts = label_geo_points(geo_points, d_lat, d_lng, n_lng, n_lat)
+        accidents_arr[time_now] = geo_cnts
+    print "finish labeling"
+    print len(accidents_arr["2016-02-28 08:00"])
 def get_all_accidents_from_db(output_pickle):
     outfile = open(output_pickle, 'wb')
     print "query start!"
-    accidents = Call_Incidence.objects.order_by("create_time")
+    start_dt = datetime.datetime.strptime("2016-01-01 00:00:00","%Y-%m-%d %H:%M:%S")
+    end_dt = datetime.datetime.strptime("2016-01-03 00:00:00","%Y-%m-%d %H:%M:%S")
+    accidents = Call_Incidence.objects.filter(create_time__range=[start_dt, end_dt]).order_by("create_time")
     print "query finish!"
     print "before: %d" % len(accidents)
     accidents_filtered = []
