@@ -123,7 +123,7 @@ def label_geo_points(geo_points, d_lat, d_lng, n_lng, n_lat):
             id = i_lng * n_lat + j_lat
             geo_cnts[id] += 1
     return geo_cnts
-def label_all_accidents(input_pickle_file, d_lat, d_lng, n_lng, n_lat, interval = 60):
+def label_all_accidents(input_pickle_file, d_lat, d_lng, n_lng, n_lat, interval = 60, dlen = 500):
     time_list, accidents_of_all = partition_geopoints_by_time(input_pickle_file,interval = interval)
     accidents_arr = {}
     print "start labeling"
@@ -155,6 +155,62 @@ def get_all_accidents_from_db(output_pickle):
     outfile.close()
 
     print "dump success!"
+def handle_gaode_ret(ret):
+    pois = ret['pois']
+    out_strs = []
+    for poi in pois:
+        out_temp_str = u"%s,%s,%s" % (poi['name'],poi['typecode'],poi['location'])
+        out_strs.append(out_temp_str)
+    out_str = '\n'.join(out_strs)
+    return out_str
+def get_pois_from_gaode(type, output_file_path):
+    output_file = open(output_file_path, "w")
+    url = 'http://restapi.amap.com/v3/place/text?'
+    headers = {}
+    offset = 20
+    params = {
+        'types' : type,
+        'city': '010',
+        'citylimit' : 'true',
+        'offset' : offset,
+        'page' : 1,
+        'output':'JSON',
+        'key':'e4b3fa82553f7d984ff168f8c9de115c'
+    }
+    ret = requests.get(url,params = params,headers=headers).json()
+
+    output_file.write(handle_gaode_ret(ret))
+
+    total =  int(ret['count'])
+    total_pages = int(math.ceil(float(total)/offset))
+    print "tot: %d, tot_pages: %d" % (total, total_pages)
+
+    for i in range(2,total_pages):
+        print "now handle page %d" % i
+        params['page'] = i
+        ret = requests.get(url,params = params,headers=headers).json()
+        output_file.write(handle_gaode_ret(ret))
+    output_file.close()
+    print "finish write %s" % type
+def get_pois_from_baidu(keyword, industry_type, output_file_path):
+    url = 'http://api.map.baidu.com/place/v2/search?'
+    headers = {}
+    params = {
+        'query':keyword,
+        'page_num':19,
+        'page_size':20,
+        'output':'json',
+        'scope':2,
+        'filter':'industry_type:'+ industry_type,
+        'region':'北京',
+        'ak':'eM0GfCwd27kZRyM49ZOkvkOaidDXz6Wf'
+    }
+
+    ret = requests.get(url,params = params,headers=headers).json()
+    print ret
+    total = int(ret['total'])
+    print len(ret['results'])
+
 def get_liuhuan_poi(output_file_path, sep = 500):
     # keyword = '六环'
     # url = 'http://api.map.baidu.com/place/v2/search?'
