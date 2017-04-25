@@ -24,10 +24,146 @@ NOON = 3
 AFTERNOON_WORK = 4
 AFTERNOON_RUSH = 5
 NIGHT = 6
-
+second_format = "%Y-%m-%d %H:%M:%S"
 #节假日list: 2016-1-1 ~ 2017-2-28
 holiday_str_list = ["2016-01-01","2016-01-02","2016-01-03","2016-02-07","2016-02-08","2016-02-09","2016-02-10","2016-02-11","2016-02-12","2016-02-13","2016-04-02","2016-04-03","2016-04-04","2016-04-30","2016-05-01","2016-05-02","2016-06-09","2016-06-10","2016-06-11","2016-09-15","2016-09-16","2016-09-17","2016-10-01","2016-10-02","2016-10-03","2016-10-04","2016-10-05","2016-10-06","2016-10-07","2016-12-31","2017-01-01","2017-01-02","2017-01-27","2017-01-28","2017-01-29","2017-01-30","2017-01-31","2017-02-01","2017-02-02"]
+holiday_3_list = [["2016-01-01","2016-01-02","2016-01-03"],["2016-04-02","2016-04-03","2016-04-04"], ["2016-04-30","2016-05-01","2016-05-02"], ["2016-06-09","2016-06-10","2016-06-11"], ["2016-09-15","2016-09-16","2016-09-17"], ["2016-12-31","2017-01-01","2017-01-02"]]
+holiday_7_list = [["2016-02-07","2016-02-08","2016-02-09","2016-02-10","2016-02-11","2016-02-12","2016-02-13"], ["2016-10-01","2016-10-02","2016-10-03","2016-10-04","2016-10-05","2016-10-06","2016-10-07"], ["2017-01-27","2017-01-28","2017-01-29","2017-01-30","2017-01-31","2017-02-01","2017-02-02"]]
+tiaoxiu_list = ["2016-02-06","2016-02-14","2016-06-12","2016-09-18","2016-10-08","2016-10-09","2017-01-22","2017-02-04"]
+work_day_bounds = [["2016-01-04","2016-02-05"],["2016-02-15","2016-04-01"],["2016-04-05","2016-04-29"],["2016-05-03","2016-06-08"],["2016-06-13","2016-09-14"],["2016-09-19","2016-09-30"],["2016-10-10","2016-12-30"],["2017-01-03","2017-01-21"],["2017-01-23","2017-01-26"],["2017-02-03","2017-02-03"],["2017-02-05","2017-02-28"]]
+hour_0 = " 00:00:00"
+end_of_day = " 23:59:59"
 
+LABEL_KEY = "LABEL"
+LAST_N_HOUR_KEY = "LAST_N"
+YESTERDAY_KEY = "YEST_ND"
+LAST_WEEK_KEY = "LAST_WEEK"
+
+#获取数据库中工作日时段的所有事故相关的数据
+def get_work_day_data(data_bounds,time_interval, spatial_interval):
+    work_day_accidents = {}
+    work_day_accidents_arr = []
+    for day_start, day_end in data_bounds:
+        dt_start = datetime.datetime.strptime(day_start + hour_0, second_format)
+        dt_end = datetime.datetime.strptime(day_end + end_of_day, second_format)
+
+        # dt_now = dt_start
+        # dt_now_end_of_day = datetime.datetime.strptime(day_start + end_of_day, "%Y-%m-%d %H:%M:%S")
+        # datetime_list = []
+        # time_delta = datetime.timedelta(hours= 24)
+        # while dt_now < dt_end:
+        #     datetime_list.append([dt_now, dt_now_end_of_day])
+        #     dt_now += time_delta
+        #     dt_now_end_of_day += time_delta
+        # for dt_s, dt_e in datetime_list:
+        accidents = Accidents_Array.objects.filter(time_interval= time_interval, spatial_interval= spatial_interval, create_time__range=[ dt_start, dt_end]).order_by("create_time")
+        for accident in accidents:
+            time_str = accident.create_time.strftime(second_format)
+            work_day_accidents[time_str] = accident
+            work_day_accidents_arr.append(accident)
+    return work_day_accidents, work_day_accidents_arr
+#获取工作日训练数据
+#n:过去的几个小时
+#n_d:昨天当前时刻前后的n_d个小时
+#n_w:上周对应星期几的对应时间前后的n_w个小时
+def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
+    work_day_accidents, work_day_accidents_arr = get_work_day_data(work_day_bounds,time_interval, spatial_interval)
+
+    len_arr = len(work_day_accidents)
+    print "len arr %d" % len_arr
+    n_delta = datetime.timedelta(hours=n)
+    n_d_delta_pre = datetime.timedelta(hours= (24 + n_d))
+    n_d_delta_post = datetime.timedelta(hours= (24 - n_d))
+    hour_delta = datetime.timedelta(hours=1)
+
+    n_w_delta_pre = datetime.timedelta(hours= (7 * 24 + n_d))
+    n_w_delta_post = datetime.timedelta(hours= (7 * 24 - n_d))
+
+    work_day_accidents_for_train = {}
+    #从1月12日开始生成训练数据
+    for i in range(8 * 24, 37 * 24):
+        time_now = work_day_accidents_arr[i].create_time
+        time_now_str = time_now.strftime(second_format)
+        print time_now_str
+        work_day_accidents_for_train[time_now_str] = {}
+
+        #当前时刻的事故数据
+        data_now = work_day_accidents_arr[i]
+        work_day_accidents_for_train[time_now_str][LABEL_KEY] = data_now
+
+        #上n个小时的事故数据
+        time_minus_n = time_now - n_delta
+        ts = time_minus_n
+        ts_str = ts.strftime(second_format)
+
+        #如果恰巧处在日期不连续的时间点,则直接取上几个数据
+        if ts_str not in work_day_accidents.keys():
+            last_n = i - n
+            work_day_accidents_for_train[time_now_str][LAST_N_HOUR_KEY] = work_day_accidents_arr[last_n : i]
+            # print "len_n: %d, len_ids: %d" % (n, len(work_day_accidents_arr[last_n : i]))
+        else:
+            #否则按照日期-n小时来查找数据
+            last_n_arr = []
+            while ts < time_now:
+                last_n_arr.append(work_day_accidents[ts_str])
+                ts += hour_delta
+                ts_str = ts.strftime(second_format)
+            work_day_accidents_for_train[time_now_str][LAST_N_HOUR_KEY] = last_n_arr
+            # print "len_arr: %d" % len(last_n_arr)
+        #print "Got last %d data for %s !" % (n, time_now_str)
+
+        # n_d昨天相同时间前后n_d小时的数据
+        t_last_day_n_d_pre = time_now - n_d_delta_pre
+        t_last_day_n_d_post = time_now - n_d_delta_post
+
+        t_pe = t_last_day_n_d_pre
+        t_pe_str = t_pe.strftime(second_format)
+
+        t_po = t_last_day_n_d_post
+        t_po_str = t_po.strftime(second_format)
+
+        #时间交界处
+        if (t_pe_str not in work_day_accidents.keys()) or (t_po_str not in work_day_accidents.keys()):
+            yest_nd_pre = i - 24 - n_d
+            yest_nd_post = i - 24 + n_d
+            work_day_accidents_for_train[time_now_str][YESTERDAY_KEY] = work_day_accidents_arr[yest_nd_pre : yest_nd_post + 1]
+            #print "len_nd: %d, len_ids: %d" % (n_d, len(work_day_accidents_arr[yest_nd_pre : yest_nd_post + 1]))
+        else:
+            #否则按照昨天的-nd:+nd小时来查找数据
+            yest_nd_arr = []
+            while t_pe <= t_po:
+                yest_nd_arr.append(work_day_accidents[t_pe_str])
+                t_pe += hour_delta
+                t_pe_str = t_pe.strftime(second_format)
+            work_day_accidents_for_train[time_now_str][YESTERDAY_KEY] = yest_nd_arr
+            #print "len_arr: %d" % len(yest_nd_arr)
+
+        # n_w上周相同时间前后n_w小时的数据
+        t_last_week_n_w_pre = time_now - n_w_delta_pre
+        t_last_week_n_w_post = time_now - n_w_delta_post
+
+        tw_pe = t_last_week_n_w_pre
+        tw_pe_str = tw_pe.strftime(second_format)
+
+        tw_po = t_last_week_n_w_post
+        tw_po_str = tw_po.strftime(second_format)
+
+        #时间交界处
+        if (tw_pe_str not in work_day_accidents.keys()) or (tw_po_str not in work_day_accidents.keys()):
+            pass
+            # yest_nd_pre = i - 24 - n_d
+            # yest_nd_post = i - 24 + n_d
+            # work_day_accidents_for_train[time_now_str][YESTERDAY_KEY] = work_day_accidents_arr[yest_nd_pre : yest_nd_post + 1]
+            #print "len_nd: %d, len_ids: %d" % (n_d, len(work_day_accidents_arr[yest_nd_pre : yest_nd_post + 1]))
+        else:
+            #否则按照上周的-nd:+nd小时来查找数据
+            last_week_nw_arr = []
+            while tw_pe <= tw_po:
+                last_week_nw_arr.append(work_day_accidents[tw_pe_str])
+                tw_pe += hour_delta
+                tw_pe_str = tw_pe.strftime(second_format)
+            work_day_accidents_for_train[time_now_str][LAST_WEEK_KEY] = last_week_nw_arr
+            #print "len_arr: %d" % len(yest_nd_arr)
 
 def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
     output_file = open(output_file_path,"w")
