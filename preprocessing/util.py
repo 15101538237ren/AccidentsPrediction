@@ -72,18 +72,15 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
     len_arr = len(work_day_accidents)
     print "len arr %d" % len_arr
     n_delta = datetime.timedelta(hours=n)
-    n_d_delta_pre = datetime.timedelta(hours= (24 + n_d))
-    n_d_delta_post = datetime.timedelta(hours= (24 - n_d))
     hour_delta = datetime.timedelta(hours=1)
 
-    n_w_delta_pre = datetime.timedelta(hours= (7 * 24 + n_d))
-    n_w_delta_post = datetime.timedelta(hours= (7 * 24 - n_d))
 
     work_day_accidents_for_train = {}
     #从1月12日开始生成训练数据
     for i in range(8 * 24, 37 * 24):
         time_now = work_day_accidents_arr[i].create_time
         time_now_str = time_now.strftime(second_format)
+        now_week_day = time_now.weekday()
         print time_now_str
         work_day_accidents_for_train[time_now_str] = {}
 
@@ -113,8 +110,8 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
         #print "Got last %d data for %s !" % (n, time_now_str)
 
         # n_d昨天相同时间前后n_d小时的数据
-        t_last_day_n_d_pre = time_now - n_d_delta_pre
-        t_last_day_n_d_post = time_now - n_d_delta_post
+        t_last_day_n_d_pre = time_now - datetime.timedelta(hours= (24 + n_d))
+        t_last_day_n_d_post = time_now - datetime.timedelta(hours= (24 - n_d))
 
         t_pe = t_last_day_n_d_pre
         t_pe_str = t_pe.strftime(second_format)
@@ -139,31 +136,50 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
             #print "len_arr: %d" % len(yest_nd_arr)
 
         # n_w上周相同时间前后n_w小时的数据
-        t_last_week_n_w_pre = time_now - n_w_delta_pre
-        t_last_week_n_w_post = time_now - n_w_delta_post
+        t_last_week_n_w_pre = time_now - datetime.timedelta(hours= (7 * 24 + n_w))
+        t_last_week_n_w_post = time_now - datetime.timedelta(hours= (7 * 24 - n_w))
 
         tw_pe = t_last_week_n_w_pre
         tw_pe_str = tw_pe.strftime(second_format)
 
         tw_po = t_last_week_n_w_post
         tw_po_str = tw_po.strftime(second_format)
-
+        last_week_nw_arr = []
         #时间交界处
         if (tw_pe_str not in work_day_accidents.keys()) or (tw_po_str not in work_day_accidents.keys()):
-            pass
-            # yest_nd_pre = i - 24 - n_d
-            # yest_nd_post = i - 24 + n_d
-            # work_day_accidents_for_train[time_now_str][YESTERDAY_KEY] = work_day_accidents_arr[yest_nd_pre : yest_nd_post + 1]
-            #print "len_nd: %d, len_ids: %d" % (n_d, len(work_day_accidents_arr[yest_nd_pre : yest_nd_post + 1]))
+            for d_l in range(13):
+                last_week_time = time_now - datetime.timedelta(hours=d_l * 24)
+                last_week_time_str = last_week_time.strftime(second_format)
+                last_week_time_weekday = last_week_time.weekday()
+                if last_week_time_weekday != now_week_day:
+                    continue
+                elif last_week_time_str not in work_day_accidents.keys():
+                    continue
+                else:
+                    #星期既相等,时间数据又有
+                    lw_t_pre = last_week_time - datetime.timedelta(hours= n_w)
+                    lw_t_pre_str = lw_t_pre.strftime(second_format)
+                    lw_t_post = last_week_time + datetime.timedelta(hours= n_w)
+                    lw_t_post_str = lw_t_post.strftime(second_format)
+
+                    if (lw_t_pre_str not in work_day_accidents.keys()) or (lw_t_post_str not in work_day_accidents.keys()):
+                        continue
+                    else:
+                        while lw_t_pre <= lw_t_post:
+                            last_week_nw_arr.append(work_day_accidents[lw_t_pre_str])
+                            lw_t_pre += hour_delta
+                            lw_t_pre_str = lw_t_pre.strftime(second_format)
+                        work_day_accidents_for_train[time_now_str][LAST_WEEK_KEY] = last_week_nw_arr
+                        print "len_arr_u: %d" % len(last_week_nw_arr)
+                        break
         else:
             #否则按照上周的-nd:+nd小时来查找数据
-            last_week_nw_arr = []
             while tw_pe <= tw_po:
                 last_week_nw_arr.append(work_day_accidents[tw_pe_str])
                 tw_pe += hour_delta
                 tw_pe_str = tw_pe.strftime(second_format)
             work_day_accidents_for_train[time_now_str][LAST_WEEK_KEY] = last_week_nw_arr
-            #print "len_arr: %d" % len(yest_nd_arr)
+            print "len_arr_d: %d" % len(last_week_nw_arr)
 
 def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
     output_file = open(output_file_path,"w")

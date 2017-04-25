@@ -58,5 +58,5 @@ def timeline(request):
     # label_all_function_regions(input_file_list,**param_1000)
     # label_all_accidents(outpkl_file_path, 60, **param_500)
     #get_work_day_data(work_day_bounds,time_interval=60, spatial_interval=1000)
-    get_work_day_data_for_train(time_interval=60, spatial_interval=1000, n = 5, n_d = 3, n_w = 3)
+    get_work_day_data_for_train(time_interval=60, spatial_interval=1000, n = 5, n_d = 3, n_w = 4)
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
