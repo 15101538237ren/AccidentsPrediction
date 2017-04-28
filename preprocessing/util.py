@@ -40,7 +40,7 @@ tiaoxiu_list = ["2016-02-06","2016-02-14","2016-06-12","2016-09-18","2016-10-08"
 work_day_bounds = [["2016-01-04","2016-02-05"],["2016-02-15","2016-04-01"],["2016-04-05","2016-04-29"],["2016-05-03","2016-06-08"],["2016-06-13","2016-09-14"],["2016-09-19","2016-09-30"],["2016-10-10","2016-12-30"],["2017-01-03","2017-01-21"],["2017-01-23","2017-01-26"],["2017-02-03","2017-02-03"],["2017-02-05","2017-02-28"]]
 hour_0 = " 00:00:00"
 end_of_day = " 23:59:59"
-
+TRAIN_DATA_KEY = "TRAIN_DATA"
 LABEL_KEY = "LABEL"
 LAST_N_HOUR_KEY = "LAST_N"
 YESTERDAY_KEY = "YEST_ND"
@@ -249,15 +249,18 @@ def prepare_lstm_data(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
 
     #卷积操作相关
     x_shape = (1, 1, height, width) #n,c,h,w
+    out_shape = (1, 1, height * width)
     w_shape = (1, 1, 3, 3) #f,c,hw,ww
     w = np.array([0.5, 0.5, 0.5, 0.5, 1.0, 0.5, 0.5, 0.5, 0.5,]).reshape(w_shape)
     b = np.array([0])
     conv_param = {'stride': 1, 'pad': 1}
 
+    #内层每一个样本点的每个时间点对应的数据维度
+    n_dim_inner = 10
 
     work_day_acc = get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
     tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
-    all_data = []
+    all_data = {}
     dt_list = []
     dt_now = dt_start
     while dt_now < dt_end:
@@ -285,15 +288,26 @@ def prepare_lstm_data(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
         data_merge = data_last_week + data_yesterday
         data_merge = data_merge + data_last_hours
 
-        extra_datas = []
-        data_contents = []
-        for data_i in data_merge:
+        len_data_merge = len(data_merge)
+        data_shape = (height * width, len_data_merge, n_dim_inner)
+        data_for_now = np.zeros(data_shape)
+
+        for idx, data_i in enumerate(data_merge):
             extra_data = [int(data_i.highest_temperature), int(data_i.lowest_temperature), float(data_i.wind), float(data_i.weather_severity), int(data_i.aqi), int(data_i.pm25), int(data_i.is_holiday), int(data_i.is_weekend), int(data_i.time_segment)]
             data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
-            out, _ = conv_forward_naive(data_content, w, b, conv_param)
-            print out
-            print out.shape  #n,f,ho,wo
+            out_conv, _ = conv_forward_naive(data_content, w, b, conv_param)
+            out_conv = out_conv.ravel()
+            data_for_now[:, idx, 0] = out_conv
+            data_for_now[:, idx, 1: n_dim_inner] = extra_data
 
+        data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
+
+        all_data[dt_str] = {}
+        for i_t in range(height * width):
+            all_data[dt_str][str(i_t)] = {}
+            all_data[dt_str][str(i_t)][TRAIN_DATA_KEY] = data_for_now[i_t, :, :]
+            all_data[dt_str][str(i_t)][LABEL_KEY] = data_arr[i_t]
+    return all_data
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
     datetime_start_str = "2016-01-01 00:00:00"
