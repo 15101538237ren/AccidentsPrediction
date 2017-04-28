@@ -248,7 +248,7 @@ def prepare_lstm_data(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
     spatial_interval = params["d_len"]
 
     #卷积操作相关
-    x_shape = (1, 1, width, height) #n,c,h,w
+    x_shape = (1, 1, height, width) #n,c,h,w
     w_shape = (1, 1, 3, 3) #f,c,hw,ww
     w = np.array([0.5, 0.5, 0.5, 0.5, 1.0, 0.5, 0.5, 0.5, 0.5,]).reshape(w_shape)
     b = np.array([0])
