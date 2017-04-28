@@ -242,10 +242,16 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
             work_day_accidents_for_train[time_now_str][LAST_WEEK_KEY] = last_week_nw_arr
             print "len_arr_d: %d" % len(last_week_nw_arr)
     return work_day_accidents_for_train
-def prepare_lstm_data(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
+def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
     width = params["n_lng"]
     height = params["n_lat"]
     spatial_interval = params["d_len"]
+
+    # n_time_steps
+    n_time_steps = n + (n_d + n_w ) *2 + 2
+
+    # 内层每一个样本点的每个时间点对应的数据维度
+    data_dim = 10
 
     #卷积操作相关
     x_shape = (1, 1, height, width) #n,c,h,w
@@ -255,22 +261,24 @@ def prepare_lstm_data(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
     b = np.array([0])
     conv_param = {'stride': 1, 'pad': 1}
 
-    #内层每一个样本点的每个时间点对应的数据维度
-    n_dim_inner = 10
-
     work_day_acc = get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
     tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
-    all_data = {}
+    # all_data = {}
+    all_data_list = []
+    all_label_list = []
     dt_list = []
     dt_now = dt_start
     while dt_now < dt_end:
         dt_list.append(dt_now)
         dt_now += datetime.timedelta(minutes= time_interval)
 
+    dt_cnt = 0
     for dt_now in dt_list:
         dt_str = dt_now.strftime(second_format)
         dt_str_date = dt_now.strftime(date_format)
-
+        if (dt_str_date in holiday_7_list[0]) or (dt_str_date in holiday_3_list[0]) or (dt_str_date == tiaoxiu_list[0]):
+            continue
+        dt_cnt += 1
         if dt_str_date in holiday_3_list_flatten:
             data_now = holiday_3_acc[dt_str]
         elif dt_str_date in holiday_7_list_flatten:
@@ -289,25 +297,48 @@ def prepare_lstm_data(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
         data_merge = data_merge + data_last_hours
 
         len_data_merge = len(data_merge)
-        data_shape = (height * width, len_data_merge, n_dim_inner)
+        data_shape = (height * width, len_data_merge, data_dim)
         data_for_now = np.zeros(data_shape)
 
         for idx, data_i in enumerate(data_merge):
-            extra_data = [int(data_i.highest_temperature), int(data_i.lowest_temperature), float(data_i.wind), float(data_i.weather_severity), int(data_i.aqi), int(data_i.pm25), int(data_i.is_holiday), int(data_i.is_weekend), int(data_i.time_segment)]
+            extra_data = [int(data_i.highest_temperature), int(data_i.lowest_temperature), float(data_i.weather_severity), int(data_i.aqi), int(data_i.pm25), int(data_i.is_holiday), int(data_i.is_weekend), int(data_i.time_segment)]
             data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
             out_conv, _ = conv_forward_naive(data_content, w, b, conv_param)
             out_conv = out_conv.ravel()
-            data_for_now[:, idx, 0] = out_conv
-            data_for_now[:, idx, 1: n_dim_inner] = extra_data
+            data_for_now[:, idx, 0] = [it for it in range(height * width)]
+            data_for_now[:, idx, 1] = out_conv
+            data_for_now[:, idx, 2: data_dim] = extra_data
 
         data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
 
-        all_data[dt_str] = {}
+        # all_data[dt_str] = {}
         for i_t in range(height * width):
-            all_data[dt_str][str(i_t)] = {}
-            all_data[dt_str][str(i_t)][TRAIN_DATA_KEY] = data_for_now[i_t, :, :]
-            all_data[dt_str][str(i_t)][LABEL_KEY] = data_arr[i_t]
-    return all_data
+            # all_data[dt_str][str(i_t)] = {}
+            # all_data[dt_str][str(i_t)][TRAIN_DATA_KEY] = data_for_now[i_t, :, :]
+            # all_data[dt_str][str(i_t)][LABEL_KEY] = data_arr[i_t]
+            all_data_list.append(data_for_now[i_t, :, :])
+            all_label_list.append(data_arr[i_t])
+        print "finish %s" % dt_str
+
+    out_data_length = dt_cnt * height * width
+    out_params = {
+                      "out_data_length" : out_data_length,
+                      "n_time_steps" : n_time_steps,
+                      "data_dim" : data_dim,
+                      "time_interval" : time_interval,
+                      "spatial_interval" : spatial_interval,
+                      "n_lng": width,
+                      "n_lat": height
+                  }
+
+    print "start dump!"
+    outfile = open(out_pickle_file_path, 'wb')
+    pickle.dump(all_data_list,outfile,-1)
+    pickle.dump(all_label_list,outfile,-1)
+    pickle.dump(out_params, outfile,pickle.HIGHEST_PROTOCOL)
+    print "dump complete"
+    outfile.close()
+    return 0
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
     datetime_start_str = "2016-01-01 00:00:00"
