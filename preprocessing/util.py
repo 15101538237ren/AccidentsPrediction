@@ -243,7 +243,18 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
             print "len_arr_d: %d" % len(last_week_nw_arr)
     return work_day_accidents_for_train
 def prepare_lstm_data(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
+    width = params["n_lng"]
+    height = params["n_lat"]
     spatial_interval = params["d_len"]
+
+    #卷积操作相关
+    x_shape = (1, 1, width, height) #n,c,h,w
+    w_shape = (1, 1, 3, 3) #f,c,hw,ww
+    w = np.array([0.5, 0.5, 0.5, 0.5, 1.0, 0.5, 0.5, 0.5, 0.5,]).reshape(w_shape)
+    b = np.array([0])
+    conv_param = {'stride': 1, 'pad': 1}
+
+
     work_day_acc = get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
     tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
     all_data = []
@@ -265,7 +276,24 @@ def prepare_lstm_data(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
             data_now = tiaoxiu_acc[dt_str]
         else:
             data_now = work_day_acc[dt_str]
-        
+
+        data_last_week = data_now[LAST_WEEK_KEY]
+        data_yesterday = data_now[YESTERDAY_KEY]
+        data_last_hours = data_now[LAST_N_HOUR_KEY]
+        data_labels = data_now[LABEL_KEY]
+
+        data_merge = data_last_week + data_yesterday
+        data_merge = data_merge + data_last_hours
+
+        extra_datas = []
+        data_contents = []
+        for data_i in data_merge:
+            extra_data = [int(data_i.highest_temperature), int(data_i.lowest_temperature), float(data_i.wind), float(data_i.weather_severity), int(data_i.aqi), int(data_i.pm25), int(data_i.is_holiday), int(data_i.is_weekend), int(data_i.time_segment)]
+            data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
+            out, _ = conv_forward_naive(data_content, w, b, conv_param)
+            print out
+            print out.shape  #n,f,ho,wo
+
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
     datetime_start_str = "2016-01-01 00:00:00"

@@ -59,4 +59,7 @@ def timeline(request):
     #label_all_accidents(outpkl_file_path, 20, **param_1000)
     #get_work_day_data(work_day_bounds,time_interval=60, spatial_interval=1000)
     # get_holiday_and_tiaoxiu_data_for_train(time_interval=30, spatial_interval=1000, n = 5, n_d = 3, n_w = 4)
+    dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
+    dt_end = datetime.datetime.strptime("2016-01-13 23:59:59",second_format)
+    prepare_lstm_data(dt_start, dt_end, time_interval= 60, n=5, n_d= 3, n_w=3, **param_1000)
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
