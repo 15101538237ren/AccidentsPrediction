@@ -56,7 +56,7 @@ def timeline(request):
     param_1000['n_lng'] = 28
     param_1000['n_lat'] = 31
     # label_all_function_regions(input_file_list,**param_1000)
-    # label_all_accidents(outpkl_file_path, 60, **param_500)
+    #label_all_accidents(outpkl_file_path, 20, **param_1000)
     #get_work_day_data(work_day_bounds,time_interval=60, spatial_interval=1000)
-    get_holiday_and_tiaoxiu_data_for_train(time_interval=30, spatial_interval=1000, n = 5, n_d = 3, n_w = 4)
+    # get_holiday_and_tiaoxiu_data_for_train(time_interval=30, spatial_interval=1000, n = 5, n_d = 3, n_w = 4)
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))

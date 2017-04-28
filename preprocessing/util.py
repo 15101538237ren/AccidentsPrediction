@@ -2,6 +2,7 @@
 import sys,os,requests,urllib,json,math,pickle,datetime
 from  models import *
 from import_data import unicode_csv_reader
+import numpy as np
 reload(sys)
 sys.setdefaultencoding('utf8')
 ## 六环
@@ -29,8 +30,12 @@ date_format = "%Y-%m-%d"
 minute_format = "%Y-%m-%d %H:%M"
 #节假日list: 2016-1-1 ~ 2017-2-28
 holiday_str_list = ["2016-01-01","2016-01-02","2016-01-03","2016-02-07","2016-02-08","2016-02-09","2016-02-10","2016-02-11","2016-02-12","2016-02-13","2016-04-02","2016-04-03","2016-04-04","2016-04-30","2016-05-01","2016-05-02","2016-06-09","2016-06-10","2016-06-11","2016-09-15","2016-09-16","2016-09-17","2016-10-01","2016-10-02","2016-10-03","2016-10-04","2016-10-05","2016-10-06","2016-10-07","2016-12-31","2017-01-01","2017-01-02","2017-01-27","2017-01-28","2017-01-29","2017-01-30","2017-01-31","2017-02-01","2017-02-02"]
+holiday_3_list_flatten = ["2016-01-01","2016-01-02","2016-01-03","2016-04-02","2016-04-03","2016-04-04","2016-04-30","2016-05-01","2016-05-02","2016-06-09","2016-06-10","2016-06-11","2016-09-15","2016-09-16","2016-09-17","2016-12-31","2017-01-01","2017-01-02"]
+
 holiday_3_list = [["2016-01-01","2016-01-02","2016-01-03"],["2016-04-02","2016-04-03","2016-04-04"], ["2016-04-30","2016-05-01","2016-05-02"], ["2016-06-09","2016-06-10","2016-06-11"], ["2016-09-15","2016-09-16","2016-09-17"], ["2016-12-31","2017-01-01","2017-01-02"]]
 holiday_7_list = [["2016-02-07","2016-02-08","2016-02-09","2016-02-10","2016-02-11","2016-02-12","2016-02-13"], ["2016-10-01","2016-10-02","2016-10-03","2016-10-04","2016-10-05","2016-10-06","2016-10-07"], ["2017-01-27","2017-01-28","2017-01-29","2017-01-30","2017-01-31","2017-02-01","2017-02-02"]]
+holiday_7_list_flatten = ["2016-02-07","2016-02-08","2016-02-09","2016-02-10","2016-02-11","2016-02-12","2016-02-13","2016-10-01","2016-10-02","2016-10-03","2016-10-04","2016-10-05","2016-10-06","2016-10-07","2017-01-27","2017-01-28","2017-01-29","2017-01-30","2017-01-31","2017-02-01","2017-02-02"]
+
 tiaoxiu_list = ["2016-02-06","2016-02-14","2016-06-12","2016-09-18","2016-10-08","2016-10-09","2017-01-22","2017-02-04"]
 work_day_bounds = [["2016-01-04","2016-02-05"],["2016-02-15","2016-04-01"],["2016-04-05","2016-04-29"],["2016-05-03","2016-06-08"],["2016-06-13","2016-09-14"],["2016-09-19","2016-09-30"],["2016-10-10","2016-12-30"],["2017-01-03","2017-01-21"],["2017-01-23","2017-01-26"],["2017-02-03","2017-02-03"],["2017-02-05","2017-02-28"]]
 hour_0 = " 00:00:00"
@@ -40,6 +45,52 @@ LABEL_KEY = "LABEL"
 LAST_N_HOUR_KEY = "LAST_N"
 YESTERDAY_KEY = "YEST_ND"
 LAST_WEEK_KEY = "LAST_WEEK"
+
+def conv_forward_naive(x, w, b, conv_param):
+  """
+  A naive implementation of the forward pass for a convolutional layer.
+
+  The input consists of N data points, each with C channels, height H and width
+  W. We convolve each input with F different filters, where each filter spans
+  all C channels and has height HH and width HH.
+
+  Input:
+  - x: Input data of shape (N, C, H, W)
+  - w: Filter weights of shape (F, C, HH, WW)
+  - b: Biases, of shape (F,)
+  - conv_param: A dictionary with the following keys:
+    - 'stride': The number of pixels between adjacent receptive fields in the
+      horizontal and vertical directions.
+    - 'pad': The number of pixels that will be used to zero-pad the input.
+
+  Returns a tuple of:
+  - out: Output data, of shape (N, F, H', W') where H' and W' are given by
+    H' = 1 + (H + 2 * pad - HH) / stride
+    W' = 1 + (W + 2 * pad - WW) / stride
+  - cache: (x, w, b, conv_param)
+  """
+  out = None
+  N,C,H,W = x.shape
+  F,_,HH,WW = w.shape
+  S = conv_param['stride']
+  P = conv_param['pad']
+  Ho = 1 + (H + 2 * P - HH) / S
+  Wo = 1 + (W + 2 * P - WW) / S
+  x_pad = np.zeros((N,C,H+2*P,W+2*P))
+  x_pad[:,:,P:P+H,P:P+W]=x
+  #x_pad = np.pad(x, ((0,), (0,), (P,), (P,)), 'constant')
+  out = np.zeros((N,F,Ho,Wo))
+
+  for f in xrange(F):
+    for i in xrange(Ho):
+      for j in xrange(Wo):
+        # N*C*HH*WW, C*HH*WW = N*C*HH*WW, sum -> N*1
+        out[:,f,i,j] = np.sum(x_pad[:, :, i*S : i*S+HH, j*S : j*S+WW] * w[f, :, :, :], axis=(1, 2, 3))
+
+    out[:,f,:,:]+=b[f]
+  cache = (x, w, b, conv_param)
+  return out, cache
+
 
 #获取数据库中工作日时段的所有事故相关的数据
 def get_work_day_data(data_bounds,time_interval, spatial_interval):
@@ -191,6 +242,30 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
             work_day_accidents_for_train[time_now_str][LAST_WEEK_KEY] = last_week_nw_arr
             print "len_arr_d: %d" % len(last_week_nw_arr)
     return work_day_accidents_for_train
+def prepare_lstm_data(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
+    spatial_interval = params["d_len"]
+    work_day_acc = get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
+    tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
+    all_data = []
+    dt_list = []
+    dt_now = dt_start
+    while dt_now < dt_end:
+        dt_list.append(dt_now)
+        dt_now += datetime.timedelta(minutes= time_interval)
+
+    for dt_now in dt_list:
+        dt_str = dt_now.strftime(second_format)
+        dt_str_date = dt_now.strftime(date_format)
+
+        if dt_str_date in holiday_3_list_flatten:
+            data_now = holiday_3_acc[dt_str]
+        elif dt_str_date in holiday_7_list_flatten:
+            data_now = holiday_7_acc[dt_str]
+        elif dt_str_date in tiaoxiu_list:
+            data_now = tiaoxiu_acc[dt_str]
+        else:
+            data_now = work_day_acc[dt_str]
+        
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
     datetime_start_str = "2016-01-01 00:00:00"
@@ -199,7 +274,7 @@ def get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n
     accidents = get_all_data_in_index(datetime.datetime.strptime(datetime_start_str,second_format), datetime.datetime.strptime(datetime_end_str,second_format),time_interval,spatial_interval)
 
     tiaoxiu_accidents_for_train = {}
-    
+
     tx_dt_list = []
     tx_list_idx = {}
     #先生成调休日的
@@ -355,6 +430,7 @@ def get_holiday_and_tiaoxiu_data_for_train(time_interval, spatial_interval, n, n
                             holiday_accidents_for_train[idx][time_now_str][LAST_WEEK_KEY] = last_monday_nw_arr
                             print "holiday len last saturday or sunday: %d" % len(last_monday_nw_arr)
                             break
+    return tiaoxiu_accidents_for_train, holiday_accidents_for_train[0], holiday_accidents_for_train[1]
 def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
     output_file = open(output_file_path,"w")
     cnt = 0
