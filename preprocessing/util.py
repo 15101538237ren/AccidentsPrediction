@@ -290,6 +290,8 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
         dt_now += datetime.timedelta(minutes= time_interval)
 
     dt_cnt = 0
+    cnt_pos = 0
+    cnt_zero = 0
     for dt_now in dt_list:
         dt_str = dt_now.strftime(second_format)
         dt_str_date = dt_now.strftime(date_format)
@@ -305,49 +307,55 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
         else:
             data_now = work_day_acc[dt_str]
 
-        data_last_week = data_now[LAST_WEEK_KEY]
-        data_yesterday = data_now[YESTERDAY_KEY]
-        data_last_hours = data_now[LAST_N_HOUR_KEY]
+        # data_last_week = data_now[LAST_WEEK_KEY]
+        # data_yesterday = data_now[YESTERDAY_KEY]
+        # data_last_hours = data_now[LAST_N_HOUR_KEY]
         data_labels = data_now[LABEL_KEY]
 
-        data_merge = data_last_week + data_yesterday
-        data_merge = data_merge + data_last_hours
-
-        len_data_merge = len(data_merge)
-        data_shape = (height * width, len_data_merge, data_dim)
-        data_for_now = np.zeros(data_shape)
-
-        for idx, data_i in enumerate(data_merge):
-            extra_data = [int(data_i.highest_temperature), int(data_i.lowest_temperature), float(data_i.weather_severity), int(data_i.aqi), int(data_i.pm25), int(data_i.is_holiday), int(data_i.is_weekend), int(data_i.time_segment)]
-            data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
-            out_conv, _ = conv_forward_naive(data_content, w, b, conv_param)
-            out_conv = out_conv.ravel()
-            data_for_now[:, idx, 0] = [it for it in range(height * width)]
-            data_for_now[:, idx, 1] = out_conv
-            data_for_now[:, idx, 2: data_dim] = extra_data
+        # data_merge = data_last_week + data_yesterday
+        # data_merge = data_merge + data_last_hours
+        #
+        # len_data_merge = len(data_merge)
+        # data_shape = (height * width, len_data_merge, data_dim)
+        # data_for_now = np.zeros(data_shape)
+        #
+        # for idx, data_i in enumerate(data_merge):
+        #     extra_data = [int(data_i.highest_temperature), int(data_i.lowest_temperature), float(data_i.weather_severity), int(data_i.aqi), int(data_i.pm25), int(data_i.is_holiday), int(data_i.is_weekend), int(data_i.time_segment)]
+        #     data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
+        #     out_conv, _ = conv_forward_naive(data_content, w, b, conv_param)
+        #     out_conv = out_conv.ravel()
+        #     data_for_now[:, idx, 0] = [it for it in range(height * width)]
+        #     data_for_now[:, idx, 1] = out_conv
+        #     data_for_now[:, idx, 2: data_dim] = extra_data
 
         data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
 
         # all_data[dt_str] = {}
+
         for i_t in range(height * width):
             # all_data[dt_str][str(i_t)] = {}
             # all_data[dt_str][str(i_t)][TRAIN_DATA_KEY] = data_for_now[i_t, :, :]
             # all_data[dt_str][str(i_t)][LABEL_KEY] = data_arr[i_t]
-            all_data_list.append(data_for_now[i_t, :, :])
+            # all_data_list.append(data_for_now[i_t, :, :])
             all_label_list.append(data_arr[i_t])
-            all_funciton_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+            if data_arr[i_t] == 0:
+                cnt_zero += 1
+            else:
+                cnt_pos +=1
+            # all_funciton_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
         print "finish %s" % dt_str
 
     out_data_length = dt_cnt * height * width
-    out_params = {
-                      "out_data_length" : out_data_length,
-                      "n_time_steps" : n_time_steps,
-                      "data_dim" : data_dim,
-                      "time_interval" : time_interval,
-                      "spatial_interval" : spatial_interval,
-                      "n_lng": width,
-                      "n_lat": height
-                  }
+    print "total: %d, pos: %d, rate %.3f" % (cnt_zero+ cnt_pos, cnt_pos, float(cnt_pos)/float(cnt_pos+cnt_zero))
+    # out_params = {
+    #                   "out_data_length" : out_data_length,
+    #                   "n_time_steps" : n_time_steps,
+    #                   "data_dim" : data_dim,
+    #                   "time_interval" : time_interval,
+    #                   "spatial_interval" : spatial_interval,
+    #                   "n_lng": width,
+    #                   "n_lat": height
+    #               }
 
     # print "start dump!"
     # pickle.dump(all_data_list,outfile,-1)
@@ -355,55 +363,56 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
     # pickle.dump(out_params, outfile,pickle.HIGHEST_PROTOCOL)
     # print "dump complete"
     # outfile.close()
-    print "total data length:" % out_data_length
-    data_dim = out_params["data_dim"]
-    timesteps = out_params["n_time_steps"]
-    LSTM_dim = 32
-    region_dim = 12
-    dense_dim = 64
-    train_data_ratio = 0.8
-    validate_data_ratio = 1.0 - train_data_ratio
-    # Input tensor for sequences of 20 timesteps,
-    # each containing a 784-dimensional vector
-    input_sequences = Input(shape=(timesteps, data_dim))
 
-    lstm1 = LSTM(LSTM_dim, return_sequences=True)(input_sequences)
-    lstm2 = LSTM(LSTM_dim, return_sequences=True)(lstm1)
-    lstm3 = LSTM(LSTM_dim)(lstm2)
-
-    region_input = Input(shape=(region_dim, ), name='region_input')
-    concat_layer = keras.layers.concatenate([lstm3, region_input])
-    # We stack a deep densely-connected network on top
-    x = Dense(dense_dim, activation='relu')(concat_layer)
-    x = Dense(dense_dim, activation='relu')(x)
-    x = Dropout(0.5)(x)
-    # And finally we add the main logistic regression layer
-    main_output = Dense(1, activation='sigmoid', name='main_output')(x)
-
-    model = Model(inputs=[input_sequences, region_input], outputs=[main_output])
-
-    model.compile(loss='binary_crossentropy', #loss :rmse?
-                  optimizer='rmsprop',# optimizer: adam?
-                  metrics=['accuracy'])
-
-    # Generate dummy training data
-    train_data_cnt = int(out_data_length * train_data_ratio)
-    x_train = [np.array(all_data_list[0:train_data_cnt]), np.array(all_funciton_list[0:train_data_cnt])]
-    y_train = np.array(all_label_list[0:train_data_cnt])
-
-    # Generate dummy validation data
-    x_val = [np.array(all_data_list[train_data_cnt:-1]),np.array(all_funciton_list[train_data_cnt:-1])]
-    y_val = np.array(all_label_list[train_data_cnt:-1])
-    batch_size = 256
-    epochs = 5
-    model.fit(x_train, y_train,
-              batch_size=batch_size, epochs= epochs,
-              validation_data=(x_val, y_val))
-
-    score, acc = model.evaluate(x_val, y_val,
-                                batch_size=batch_size)
-    print('Test score:', score)
-    print('Test accuracy:', acc)
+    # print "total data length:" % out_data_length
+    # data_dim = out_params["data_dim"]
+    # timesteps = out_params["n_time_steps"]
+    # LSTM_dim = 32
+    # region_dim = 12
+    # dense_dim = 64
+    # train_data_ratio = 0.8
+    # validate_data_ratio = 1.0 - train_data_ratio
+    # # Input tensor for sequences of 20 timesteps,
+    # # each containing a 784-dimensional vector
+    # input_sequences = Input(shape=(timesteps, data_dim))
+    #
+    # lstm1 = LSTM(LSTM_dim, return_sequences=True)(input_sequences)
+    # lstm2 = LSTM(LSTM_dim, return_sequences=True)(lstm1)
+    # lstm3 = LSTM(LSTM_dim)(lstm2)
+    #
+    # region_input = Input(shape=(region_dim, ), name='region_input')
+    # concat_layer = keras.layers.concatenate([lstm3, region_input])
+    # # We stack a deep densely-connected network on top
+    # x = Dense(dense_dim, activation='relu')(concat_layer)
+    # x = Dense(dense_dim, activation='relu')(x)
+    # x = Dropout(0.5)(x)
+    # # And finally we add the main logistic regression layer
+    # main_output = Dense(1, activation='sigmoid', name='main_output')(x)
+    #
+    # model = Model(inputs=[input_sequences, region_input], outputs=[main_output])
+    #
+    # model.compile(loss='binary_crossentropy', #loss :rmse?
+    #               optimizer='rmsprop',# optimizer: adam?
+    #               metrics=['accuracy'])
+    #
+    # # Generate dummy training data
+    # train_data_cnt = int(out_data_length * train_data_ratio)
+    # x_train = [np.array(all_data_list[0:train_data_cnt]), np.array(all_funciton_list[0:train_data_cnt])]
+    # y_train = np.array(all_label_list[0:train_data_cnt])
+    #
+    # # Generate dummy validation data
+    # x_val = [np.array(all_data_list[train_data_cnt:-1]),np.array(all_funciton_list[train_data_cnt:-1])]
+    # y_val = np.array(all_label_list[train_data_cnt:-1])
+    # batch_size = 256
+    # epochs = 5
+    # model.fit(x_train, y_train,
+    #           batch_size=batch_size, epochs= epochs,
+    #           validation_data=(x_val, y_val))
+    #
+    # score, acc = model.evaluate(x_val, y_val,
+    #                             batch_size=batch_size)
+    # print('Test score:', score)
+    # print('Test accuracy:', acc)
     return 0
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w):
