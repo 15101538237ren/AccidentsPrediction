@@ -2,7 +2,12 @@
 import sys,os,requests,urllib,json,math,pickle,datetime
 from  models import *
 from import_data import unicode_csv_reader
-import numpy as np
+import numpy as np #导入Numpy
+import pickle
+import keras
+from keras.models import Model
+from keras.layers import LSTM, Dense, Dropout, Input
+
 reload(sys)
 sys.setdefaultencoding('utf8')
 ## 六环
@@ -243,7 +248,8 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
             #print "len_arr_d: %d" % len(last_week_nw_arr)
     return work_day_accidents_for_train
 def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
-    outfile = open(out_pickle_file_path, 'wb')
+    # outfile = open(out_pickle_file_path, 'wb')
+    region_type_list = range(1, 13)
     width = params["n_lng"]
     height = params["n_lat"]
     spatial_interval = params["d_len"]
@@ -265,9 +271,18 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
     work_day_acc = get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
     holiday_dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
     tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(holiday_dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w)
+
+    region_functions = Region_Function.objects.filter(spatial_interval=spatial_interval).order_by("region_type")
+    region_matrix_dict = {}
+
+    for r_f in region_functions:
+        region_cnt_matrix = [int(item) for item in r_f.region_cnt_matrix.split(",")]
+        region_matrix_dict[str(r_f.region_type)] = region_cnt_matrix
+    #print region_matrix_dict.keys()
     # all_data = {}
     all_data_list = []
     all_label_list = []
+    all_funciton_list = []
     dt_list = []
     dt_now = dt_start
     while dt_now < dt_end:
@@ -320,6 +335,7 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
             # all_data[dt_str][str(i_t)][LABEL_KEY] = data_arr[i_t]
             all_data_list.append(data_for_now[i_t, :, :])
             all_label_list.append(data_arr[i_t])
+            all_funciton_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
         print "finish %s" % dt_str
 
     out_data_length = dt_cnt * height * width
@@ -333,12 +349,61 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
                       "n_lat": height
                   }
 
-    print "start dump!"
-    pickle.dump(all_data_list,outfile,-1)
-    pickle.dump(all_label_list,outfile,-1)
-    pickle.dump(out_params, outfile,pickle.HIGHEST_PROTOCOL)
-    print "dump complete"
-    outfile.close()
+    # print "start dump!"
+    # pickle.dump(all_data_list,outfile,-1)
+    # pickle.dump(all_label_list,outfile,-1)
+    # pickle.dump(out_params, outfile,pickle.HIGHEST_PROTOCOL)
+    # print "dump complete"
+    # outfile.close()
+
+    data_dim = out_params["data_dim"]
+    timesteps = out_params["n_time_steps"]
+    LSTM_dim = 32
+    region_dim = 12
+    dense_dim = 64
+    train_data_ratio = 0.8
+    validate_data_ratio = 1.0 - train_data_ratio
+    # Input tensor for sequences of 20 timesteps,
+    # each containing a 784-dimensional vector
+    input_sequences = Input(shape=(timesteps, data_dim))
+
+    lstm1 = LSTM(LSTM_dim, return_sequences=True)(input_sequences)
+    lstm2 = LSTM(LSTM_dim, return_sequences=True)(lstm1)
+    lstm3 = LSTM(LSTM_dim)(lstm2)
+
+    region_input = Input(shape=(region_dim, ), name='region_input')
+    concat_layer = keras.layers.concatenate([lstm3, region_input])
+    # We stack a deep densely-connected network on top
+    x = Dense(64, activation='relu')(concat_layer)
+    x = Dense(64, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    # And finally we add the main logistic regression layer
+    main_output = Dense(1, activation='sigmoid', name='main_output')(x)
+
+    model = Model(inputs=[input_sequences, region_input], outputs=[main_output])
+
+    model.compile(loss='binary_crossentropy', #loss :rmse?
+                  optimizer='rmsprop',# optimizer: adam?
+                  metrics=['accuracy'])
+
+    # Generate dummy training data
+    train_data_cnt = int(out_data_length * train_data_ratio)
+    x_train = [np.array(all_data_list[0:train_data_cnt]), np.array(all_funciton_list[0:train_data_cnt])]
+    y_train = np.array(all_label_list[0:train_data_cnt])
+
+    # Generate dummy validation data
+    x_val = [np.array(all_data_list[train_data_cnt:-1]),np.array(all_funciton_list[train_data_cnt:-1])]
+    y_val = np.array(all_label_list[train_data_cnt:-1])
+    batch_size = 256
+    epochs = 5
+    model.fit(x_train, y_train,
+              batch_size=batch_size, epochs= epochs,
+              validation_data=(x_val, y_val))
+
+    score, acc = model.evaluate(x_val, y_val,
+                                batch_size=batch_size)
+    print('Test score:', score)
+    print('Test accuracy:', acc)
     return 0
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w):
@@ -361,7 +426,7 @@ def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spati
     for dt_tiaoxiu in tx_dt_list:
         time_now = dt_tiaoxiu
         time_now_str = time_now.strftime(second_format)
-        print "tiaoxiu holiday: %s" % time_now_str
+        print "tiaoxiu : %s" % time_now_str
         tiaoxiu_accidents_for_train[time_now_str] = {}
 
         #当前时刻的事故数据
@@ -434,7 +499,7 @@ def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spati
                     dt_hl_st += datetime.timedelta(minutes=time_interval)
                 for dt_now in dt_list:
                     time_now_str = dt_now.strftime(second_format)
-                    print time_now_str
+                    print "holiday: %s" % time_now_str
                     holiday_accidents_for_train[idx][time_now_str] = {}
 
                     #当前时刻的事故数据
