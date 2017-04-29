@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import sys,os,requests,urllib,json,math,pickle,datetime
+import sys,os,requests,urllib,json,math,pickle,datetime,random
 from  models import *
 from import_data import unicode_csv_reader
 import numpy as np #导入Numpy
@@ -7,6 +7,7 @@ import pickle
 import keras
 from keras.models import Model
 from keras.layers import LSTM, Dense, Dropout, Input
+from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
 
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -279,10 +280,19 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
         region_cnt_matrix = [int(item) for item in r_f.region_cnt_matrix.split(",")]
         region_matrix_dict[str(r_f.region_type)] = region_cnt_matrix
     #print region_matrix_dict.keys()
-    # all_data = {}
-    all_data_list = []
-    all_label_list = []
-    all_funciton_list = []
+
+    zero_workday_data_list = []
+    zero_workday_label_list = []
+    # zero_workday_function_list = []
+
+    zero_special_data_list = []
+    zero_special_label_list = []
+    # zero_special_function_list = []
+
+    positive_data_list = []
+    positive_label_list = []
+    # positive_function_list = []
+
     dt_list = []
     dt_now = dt_start
     while dt_now < dt_end:
@@ -290,72 +300,95 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
         dt_now += datetime.timedelta(minutes= time_interval)
 
     dt_cnt = 0
-    cnt_pos = 0
-    cnt_zero = 0
     for dt_now in dt_list:
         dt_str = dt_now.strftime(second_format)
         dt_str_date = dt_now.strftime(date_format)
         if (dt_str_date in holiday_7_list[0]) or (dt_str_date in holiday_3_list[0]) or (dt_str_date == tiaoxiu_list[0]):
             continue
         dt_cnt += 1
+
+
         if dt_str_date in holiday_3_list_flatten:
             data_now = holiday_3_acc[dt_str]
+            special = 1
         elif dt_str_date in holiday_7_list_flatten:
             data_now = holiday_7_acc[dt_str]
+            special = 1
         elif dt_str_date in tiaoxiu_list:
             data_now = tiaoxiu_acc[dt_str]
+            special = 1
         else:
             data_now = work_day_acc[dt_str]
+            special = 0
 
-        # data_last_week = data_now[LAST_WEEK_KEY]
-        # data_yesterday = data_now[YESTERDAY_KEY]
-        # data_last_hours = data_now[LAST_N_HOUR_KEY]
+        data_last_week = data_now[LAST_WEEK_KEY]
+        data_yesterday = data_now[YESTERDAY_KEY]
+        data_last_hours = data_now[LAST_N_HOUR_KEY]
         data_labels = data_now[LABEL_KEY]
 
-        # data_merge = data_last_week + data_yesterday
-        # data_merge = data_merge + data_last_hours
-        #
-        # len_data_merge = len(data_merge)
-        # data_shape = (height * width, len_data_merge, data_dim)
-        # data_for_now = np.zeros(data_shape)
-        #
-        # for idx, data_i in enumerate(data_merge):
-        #     extra_data = [int(data_i.highest_temperature), int(data_i.lowest_temperature), float(data_i.weather_severity), int(data_i.aqi), int(data_i.pm25), int(data_i.is_holiday), int(data_i.is_weekend), int(data_i.time_segment)]
-        #     data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
-        #     out_conv, _ = conv_forward_naive(data_content, w, b, conv_param)
-        #     out_conv = out_conv.ravel()
-        #     data_for_now[:, idx, 0] = [it for it in range(height * width)]
-        #     data_for_now[:, idx, 1] = out_conv
-        #     data_for_now[:, idx, 2: data_dim] = extra_data
+        data_merge = data_last_week + data_yesterday
+        data_merge = data_merge + data_last_hours
+
+        len_data_merge = len(data_merge)
+        data_shape = (height * width, len_data_merge, data_dim)
+        data_for_now = np.zeros(data_shape)
+
+        for idx, data_i in enumerate(data_merge):
+            extra_data = [int(data_i.highest_temperature), int(data_i.lowest_temperature), float(data_i.weather_severity), int(data_i.aqi), int(data_i.pm25), int(data_i.is_holiday), int(data_i.is_weekend), int(data_i.time_segment)]
+            data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
+            out_conv, _ = conv_forward_naive(data_content, w, b, conv_param)
+            out_conv = out_conv.ravel()
+            data_for_now[:, idx, 0] = [it for it in range(height * width)]
+            data_for_now[:, idx, 1] = out_conv
+            data_for_now[:, idx, 2: data_dim] = extra_data
 
         data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
 
-        # all_data[dt_str] = {}
-
         for i_t in range(height * width):
-            # all_data[dt_str][str(i_t)] = {}
-            # all_data[dt_str][str(i_t)][TRAIN_DATA_KEY] = data_for_now[i_t, :, :]
-            # all_data[dt_str][str(i_t)][LABEL_KEY] = data_arr[i_t]
-            # all_data_list.append(data_for_now[i_t, :, :])
-            all_label_list.append(data_arr[i_t])
             if data_arr[i_t] == 0:
-                cnt_zero += 1
+                if special == 1:
+                    zero_special_data_list.append(data_for_now[i_t, :, :])
+                    zero_special_label_list.append(data_arr[i_t])
+                    # zero_special_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+                else:
+                    zero_workday_data_list.append(data_for_now[i_t, :, :])
+                    zero_workday_label_list.append(data_arr[i_t])
+                    # zero_workday_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
             else:
-                cnt_pos +=1
-            # all_funciton_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+                positive_data_list.append(data_for_now[i_t, :, :])
+                positive_label_list.append(data_arr[i_t])
+                # positive_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
         print "finish %s" % dt_str
 
-    out_data_length = dt_cnt * height * width
-    print "total: %d, pos: %d, rate %.3f" % (cnt_zero+ cnt_pos, cnt_pos, float(cnt_pos)/float(cnt_pos+cnt_zero))
-    # out_params = {
-    #                   "out_data_length" : out_data_length,
-    #                   "n_time_steps" : n_time_steps,
-    #                   "data_dim" : data_dim,
-    #                   "time_interval" : time_interval,
-    #                   "spatial_interval" : spatial_interval,
-    #                   "n_lng": width,
-    #                   "n_lat": height
-    #               }
+    cnt_positive = len(positive_label_list)
+    cnt_zero_workday = len(zero_workday_label_list)
+    cnt_zero_special = len(zero_special_label_list)
+    diff = cnt_positive - cnt_zero_special
+    if diff > 0:
+        print "positive difference"
+    total_data_cnt = cnt_zero_special + cnt_zero_workday + cnt_positive
+    print "pre total: %d, pos: %d, rate %.3f" % (total_data_cnt, cnt_positive, float(cnt_positive)/float(total_data_cnt))
+
+    # idx = np.arange(cnt_zero)
+    #np.random.shuffle(idx)
+    idx = random.randint(0,cnt_zero_workday - diff)
+    sub_zero_data_list = zero_workday_data_list[idx :idx + cnt_positive]
+    sub_zero_label_list = zero_workday_label_list[idx : idx + cnt_positive]
+    # sub_zero_function_list = zero_workday_function_list[idx: idx + cnt_positive]
+
+    sub_total = cnt_positive + len(sub_zero_label_list) + cnt_zero_special
+
+    print "pre total: %d, pos: %d, rate %.3f" % (sub_total, cnt_positive, float(cnt_positive)/float(sub_total))
+
+    out_params = {
+                      "out_data_length" : sub_total,
+                      "n_time_steps" : n_time_steps,
+                      "data_dim" : data_dim,
+                      "time_interval" : time_interval,
+                      "spatial_interval" : spatial_interval,
+                      "n_lng": width,
+                      "n_lat": height
+                  }
 
     # print "start dump!"
     # pickle.dump(all_data_list,outfile,-1)
@@ -364,55 +397,78 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
     # print "dump complete"
     # outfile.close()
 
-    # print "total data length:" % out_data_length
-    # data_dim = out_params["data_dim"]
-    # timesteps = out_params["n_time_steps"]
-    # LSTM_dim = 32
+    print "total data length: %d" % sub_total
+    data_dim = out_params["data_dim"]
+    timesteps = out_params["n_time_steps"]
+    LSTM_dim = 32
     # region_dim = 12
-    # dense_dim = 64
-    # train_data_ratio = 0.8
+    dense_dim = 64
+    train_data_ratio = 0.8
     # validate_data_ratio = 1.0 - train_data_ratio
-    # # Input tensor for sequences of 20 timesteps,
-    # # each containing a 784-dimensional vector
-    # input_sequences = Input(shape=(timesteps, data_dim))
-    #
-    # lstm1 = LSTM(LSTM_dim, return_sequences=True)(input_sequences)
-    # lstm2 = LSTM(LSTM_dim, return_sequences=True)(lstm1)
-    # lstm3 = LSTM(LSTM_dim)(lstm2)
-    #
-    # region_input = Input(shape=(region_dim, ), name='region_input')
-    # concat_layer = keras.layers.concatenate([lstm3, region_input])
-    # # We stack a deep densely-connected network on top
-    # x = Dense(dense_dim, activation='relu')(concat_layer)
-    # x = Dense(dense_dim, activation='relu')(x)
-    # x = Dropout(0.5)(x)
-    # # And finally we add the main logistic regression layer
-    # main_output = Dense(1, activation='sigmoid', name='main_output')(x)
-    #
-    # model = Model(inputs=[input_sequences, region_input], outputs=[main_output])
-    #
-    # model.compile(loss='binary_crossentropy', #loss :rmse?
-    #               optimizer='rmsprop',# optimizer: adam?
-    #               metrics=['accuracy'])
-    #
-    # # Generate dummy training data
-    # train_data_cnt = int(out_data_length * train_data_ratio)
-    # x_train = [np.array(all_data_list[0:train_data_cnt]), np.array(all_funciton_list[0:train_data_cnt])]
-    # y_train = np.array(all_label_list[0:train_data_cnt])
-    #
-    # # Generate dummy validation data
-    # x_val = [np.array(all_data_list[train_data_cnt:-1]),np.array(all_funciton_list[train_data_cnt:-1])]
-    # y_val = np.array(all_label_list[train_data_cnt:-1])
-    # batch_size = 256
-    # epochs = 5
-    # model.fit(x_train, y_train,
-    #           batch_size=batch_size, epochs= epochs,
-    #           validation_data=(x_val, y_val))
-    #
+    # Input tensor for sequences of 20 timesteps,
+    # each containing a 784-dimensional vector
+    input_sequences = Input(shape=(timesteps, data_dim))
+
+    lstm1 = LSTM(LSTM_dim, return_sequences=True)(input_sequences)
+    lstm2 = LSTM(LSTM_dim, return_sequences=True)(lstm1)
+    lstm3 = LSTM(LSTM_dim)(lstm2)
+
+    #region_input = Input(shape=(region_dim, ), name='region_input')
+    #concat_layer = keras.layers.concatenate([lstm3, region_input])
+    # We stack a deep densely-connected network on top
+    x = Dense(dense_dim, activation='relu')(lstm3)
+    x = Dense(dense_dim, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    # And finally we add the main logistic regression layer
+    main_output = Dense(1, activation='sigmoid', name='main_output')(x)
+    model = Model(inputs=input_sequences, outputs=main_output)
+    #model = Model(inputs=[input_sequences, region_input], outputs=[main_output])
+
+    # checkpoint
+    checkpointer = ModelCheckpoint(filepath="checkpoint.h5", verbose=1)
+    # learning rate adjust dynamic
+    lrate = ReduceLROnPlateau(min_lr=0.00001)
+    early_stoping = EarlyStopping(monitor='val_loss',patience=1)
+
+
+    model.compile(loss='binary_crossentropy', #loss :rmse?
+                  optimizer='rmsprop',# optimizer: adam?
+                  metrics=['accuracy'])
+
+    all_data_list = zero_special_data_list + positive_data_list
+    all_data_list = all_data_list + sub_zero_data_list
+
+    all_label_list =  zero_special_label_list + positive_label_list
+    all_label_list = all_label_list + sub_zero_label_list
+    # all_funciton_list = sub_zero_function_list + positive_function_list
+    # all_funciton_list = all_funciton_list + zero_special_function_list
+
+    # print "start shuffle!"
+    #idx_all = np.arange(len(all_label_list))
+    #np.random.shuffle(idx_all)
+    # print "finish shuffle!"
+    # Generate dummy training data
+    train_data_cnt = int(len(all_label_list) * train_data_ratio)
+
+    # x_train = [np.array(all_data_list[idx_all[0:train_data_cnt]]), np.array(all_funciton_list[idx_all[0:train_data_cnt]])]
+    # y_train = np.array(all_label_list[idx_all[0:train_data_cnt]])
+
+    # Generate dummy validation data
+
+    # x_val = [np.array(all_data_list[idx_all[train_data_cnt:-1]]),np.array(all_funciton_list[idx_all[train_data_cnt:-1]])]
+    # y_val = np.array(all_label_list[idx_all[train_data_cnt:-1]])
+
+    batch_size = 256
+    epochs = 30
+    model.fit(all_data_list, all_label_list,
+              batch_size=batch_size, epochs= epochs, shuffle=True,
+              validation_split=0.2, callbacks=[checkpointer, lrate, early_stoping])
+
     # score, acc = model.evaluate(x_val, y_val,
     #                             batch_size=batch_size)
     # print('Test score:', score)
     # print('Test accuracy:', acc)
+
     return 0
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w):

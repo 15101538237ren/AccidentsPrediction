@@ -13,3 +13,5 @@ python setup.py install
 
 3.
 sudo apt-get install Python-scipy python-matplotlib
+
+4.sudo apt-get install libhdf5-7 libhdf5-serial-dev
