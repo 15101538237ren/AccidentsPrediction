@@ -355,7 +355,7 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
     # pickle.dump(out_params, outfile,pickle.HIGHEST_PROTOCOL)
     # print "dump complete"
     # outfile.close()
-
+    print "total data length:" % out_data_length
     data_dim = out_params["data_dim"]
     timesteps = out_params["n_time_steps"]
     LSTM_dim = 32
@@ -374,8 +374,8 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
     region_input = Input(shape=(region_dim, ), name='region_input')
     concat_layer = keras.layers.concatenate([lstm3, region_input])
     # We stack a deep densely-connected network on top
-    x = Dense(64, activation='relu')(concat_layer)
-    x = Dense(64, activation='relu')(x)
+    x = Dense(dense_dim, activation='relu')(concat_layer)
+    x = Dense(dense_dim, activation='relu')(x)
     x = Dropout(0.5)(x)
     # And finally we add the main logistic regression layer
     main_output = Dense(1, activation='sigmoid', name='main_output')(x)
