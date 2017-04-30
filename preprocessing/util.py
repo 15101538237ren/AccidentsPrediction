@@ -8,7 +8,8 @@ import keras
 from keras.models import Model
 from keras.layers import LSTM, Dense, Dropout, Input
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
-
+from sklearn.grid_search import GridSearchCV
+from keras.wrappers.scikit_learn import KerasClassifier
 reload(sys)
 sys.setdefaultencoding('utf8')
 ## 六环
@@ -249,7 +250,7 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
             #print "len_arr_d: %d" % len(last_week_nw_arr)
     return work_day_accidents_for_train
 def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
-    # outfile = open(out_pickle_file_path, 'wb')
+
     region_type_list = range(1, 13)
     width = params["n_lng"]
     height = params["n_lat"]
@@ -279,7 +280,6 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
     for r_f in region_functions:
         region_cnt_matrix = [int(item) for item in r_f.region_cnt_matrix.split(",")]
         region_matrix_dict[str(r_f.region_type)] = region_cnt_matrix
-    #print region_matrix_dict.keys()
 
     zero_workday_data_list = []
     zero_workday_label_list = []
@@ -369,41 +369,61 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
     total_data_cnt = cnt_zero_special + cnt_zero_workday + cnt_positive
     print "pre total: %d, pos: %d, rate %.3f" % (total_data_cnt, cnt_positive, float(cnt_positive)/float(total_data_cnt))
 
-    # idx = np.arange(cnt_zero)
-    #np.random.shuffle(idx)
-    idx = random.randint(0,cnt_zero_workday - diff)
-    sub_zero_data_list = zero_workday_data_list[idx :idx + cnt_positive]
-    sub_zero_label_list = zero_workday_label_list[idx : idx + cnt_positive]
-    # sub_zero_function_list = zero_workday_function_list[idx: idx + cnt_positive]
 
-    sub_total = cnt_positive + len(sub_zero_label_list) + cnt_zero_special
+    train_data_ratio = 0.7
+    zero_special_train_len = int(cnt_zero_special * train_data_ratio)
+    positive_label_train_len = int(cnt_positive * train_data_ratio)
+    zero_workday_train_len = int(cnt_positive * train_data_ratio)
 
-    print "pre total: %d, pos: %d, rate %.3f" % (sub_total, cnt_positive, float(cnt_positive)/float(sub_total))
+
+
+    all_train_data_list = np.array(zero_special_data_list[0:zero_special_train_len] + positive_data_list[0:positive_label_train_len] + zero_workday_data_list[0:zero_workday_train_len])
+    all_train_label_list =np.array(zero_special_label_list[0:zero_special_train_len] + positive_label_list[0:positive_label_train_len] + zero_workday_label_list[0:zero_workday_train_len])
+
+
+
+    all_val_data_list = np.array(zero_special_data_list[zero_special_train_len:-1] + positive_data_list[positive_label_train_len:-1] + zero_workday_data_list[zero_workday_train_len:cnt_positive])
+    all_val_label_list = np.array(zero_special_label_list[zero_special_train_len:-1] + positive_label_list[positive_label_train_len:-1] +zero_workday_label_list[zero_workday_train_len:cnt_positive])
+
+    print "start shuffling 1"
+    idx_of_train = np.arange(len(all_train_label_list))
+    np.random.shuffle(idx_of_train)
+    print "shuffling done 1"
+
+    print "data assigning 1"
+    all_train_data_list = all_train_data_list[idx_of_train[:]]
+    all_train_label_list = all_train_label_list[idx_of_train[:]]
+    print "done data assigning 1"
+
+    print "start shuffling 2"
+    idx_of_val = np.arange(len(all_val_label_list))
+    np.random.shuffle(idx_of_val)
+    print "shuffling done 2"
+
+    print "data assigning 2"
+    all_val_data_list = all_val_data_list[idx_of_val[:]]
+    all_val_label_list = all_val_label_list[idx_of_val[:]]
+    print "done data assigning 1"
+
+    sub_total = cnt_positive * 2 + cnt_zero_special
+    print "post total: %d, pos: %d, rate %.3f" % (sub_total, cnt_positive, float(cnt_positive)/float(sub_total))
 
     out_params = {
-                      "out_data_length" : sub_total,
-                      "n_time_steps" : n_time_steps,
-                      "data_dim" : data_dim,
-                      "time_interval" : time_interval,
-                      "spatial_interval" : spatial_interval,
-                      "n_lng": width,
-                      "n_lat": height
-                  }
+                  "out_data_length" : sub_total,
+                  "n_time_steps" : n_time_steps,
+                  "data_dim" : data_dim,
+                  "time_interval" : time_interval,
+                  "spatial_interval" : spatial_interval,
+                  "n_lng": width,
+                  "n_lat": height
+              }
 
-    # print "start dump!"
-    # pickle.dump(all_data_list,outfile,-1)
-    # pickle.dump(all_label_list,outfile,-1)
-    # pickle.dump(out_params, outfile,pickle.HIGHEST_PROTOCOL)
-    # print "dump complete"
-    # outfile.close()
-
-    print "total data length: %d" % sub_total
+    print "start modeling"
     data_dim = out_params["data_dim"]
     timesteps = out_params["n_time_steps"]
     LSTM_dim = 32
     # region_dim = 12
     dense_dim = 64
-    train_data_ratio = 0.8
     # validate_data_ratio = 1.0 - train_data_ratio
     # Input tensor for sequences of 20 timesteps,
     # each containing a 784-dimensional vector
@@ -427,44 +447,308 @@ def prepare_lstm_data(out_pickle_file_path, dt_start, dt_end, time_interval, n, 
     # checkpoint
     checkpointer = ModelCheckpoint(filepath="checkpoint.h5", verbose=1)
     # learning rate adjust dynamic
-    lrate = ReduceLROnPlateau(min_lr=0.00001)
-    early_stoping = EarlyStopping(monitor='val_loss',patience=1)
+    # lrate = ReduceLROnPlateau(min_lr=0.00001)
+    # early_stoping = EarlyStopping(monitor='val_loss',patience=1)
 
 
     model.compile(loss='binary_crossentropy', #loss :rmse?
                   optimizer='rmsprop',# optimizer: adam?
                   metrics=['accuracy'])
 
-    all_data_list = zero_special_data_list + positive_data_list
-    all_data_list = all_data_list + sub_zero_data_list
+    batch_size = 256
+    epochs = 1
 
-    all_label_list =  zero_special_label_list + positive_label_list
-    all_label_list = all_label_list + sub_zero_label_list
-    # all_funciton_list = sub_zero_function_list + positive_function_list
-    # all_funciton_list = all_funciton_list + zero_special_function_list
+    print "start fitting"
+    model.fit(all_train_data_list, all_train_label_list,
+              batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[checkpointer])
 
-    # print "start shuffle!"
-    #idx_all = np.arange(len(all_label_list))
-    #np.random.shuffle(idx_all)
-    # print "finish shuffle!"
-    # Generate dummy training data
-    train_data_cnt = int(len(all_label_list) * train_data_ratio)
+    score, acc = model.evaluate(all_val_data_list, all_val_label_list,
+                                batch_size=batch_size)
+    print('Test score:', score)
+    print('Test accuracy:', acc)
 
-    # x_train = [np.array(all_data_list[idx_all[0:train_data_cnt]]), np.array(all_funciton_list[idx_all[0:train_data_cnt]])]
-    # y_train = np.array(all_label_list[idx_all[0:train_data_cnt]])
+    return 0
 
-    # Generate dummy validation data
+def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
 
-    # x_val = [np.array(all_data_list[idx_all[train_data_cnt:-1]]),np.array(all_funciton_list[idx_all[train_data_cnt:-1]])]
-    # y_val = np.array(all_label_list[idx_all[train_data_cnt:-1]])
+    region_type_list = range(1, 13)
+    width = params["n_lng"]
+    height = params["n_lat"]
+    spatial_interval = params["d_len"]
+
+    # n_time_steps
+    n_time_steps = n + (n_d + n_w ) *2 + 2
+
+    # 内层每一个样本点的每个时间点对应的数据维度
+    data_dim = 1
+
+    #卷积操作相关
+    x_shape = (1, 1, height, width) #n,c,h,w
+    out_shape = (1, 1, height * width)
+    w_shape = (1, 1, 3, 3) #f,c,hw,ww
+    w = np.array([0.5, 0.5, 0.5, 0.5, 1.0, 0.5, 0.5, 0.5, 0.5,]).reshape(w_shape)
+    b = np.array([0])
+    conv_param = {'stride': 1, 'pad': 1}
+
+    work_day_acc = get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
+    holiday_dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
+    tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(holiday_dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w)
+
+    region_functions = Region_Function.objects.filter(spatial_interval=spatial_interval).order_by("region_type")
+    region_matrix_dict = {}
+
+    for r_f in region_functions:
+        region_cnt_matrix = [int(item) for item in r_f.region_cnt_matrix.split(",")]
+        region_matrix_dict[str(r_f.region_type)] = region_cnt_matrix
+
+    zero_workday_data_list = []
+    zero_workday_label_list = []
+    # zero_workday_function_list = []
+
+    zero_special_data_list = []
+    zero_special_label_list = []
+    # zero_special_function_list = []
+
+    positive_data_list = []
+    positive_label_list = []
+    # positive_function_list = []
+
+    dt_list = []
+    dt_now = dt_start
+    while dt_now < dt_end:
+        dt_list.append(dt_now)
+        dt_now += datetime.timedelta(minutes= time_interval)
+
+    dt_cnt = 0
+    for dt_now in dt_list:
+        dt_str = dt_now.strftime(second_format)
+        dt_str_date = dt_now.strftime(date_format)
+        if (dt_str_date in holiday_7_list[0]) or (dt_str_date in holiday_3_list[0]) or (dt_str_date == tiaoxiu_list[0]):
+            continue
+        dt_cnt += 1
+
+        if dt_str_date in holiday_3_list_flatten:
+            data_now = holiday_3_acc[dt_str]
+            special = 1
+        elif dt_str_date in holiday_7_list_flatten:
+            data_now = holiday_7_acc[dt_str]
+            special = 1
+        elif dt_str_date in tiaoxiu_list:
+            data_now = tiaoxiu_acc[dt_str]
+            special = 1
+        else:
+            data_now = work_day_acc[dt_str]
+            special = 0
+
+        data_last_week = data_now[LAST_WEEK_KEY]
+        data_yesterday = data_now[YESTERDAY_KEY]
+        data_last_hours = data_now[LAST_N_HOUR_KEY]
+        data_labels = data_now[LABEL_KEY]
+
+        data_merge = data_last_week + data_yesterday
+        data_merge = data_merge + data_last_hours
+
+        len_data_merge = len(data_merge)
+        data_shape = (height * width, len_data_merge, data_dim)
+        data_for_now = np.zeros(data_shape)
+
+        for idx, data_i in enumerate(data_merge):
+            # extra_data = [float(data_i.weather_severity), int(data_i.pm25), int(data_i.is_holiday), int(data_i.is_weekend), int(data_i.time_segment)]
+            data_content = np.array([int(item) for item in data_i.content.split(",")])#.reshape(x_shape)
+            # out_conv, _ = conv_forward_naive(data_content, w, b, conv_param)
+            # out_conv = out_conv.ravel()
+            # data_for_now[:, idx, 0] = [it for it in range(height * width)]
+            # data_for_now[:, idx, 1] = out_conv
+            data_for_now[:, idx, 0] = data_content
+            # data_for_now[:, idx, 1: data_dim] = extra_data
+
+        data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
+
+        for i_t in range(height * width):
+            if data_arr[i_t] == 0:
+                if special == 1:
+                    zero_special_data_list.append(data_for_now[i_t, :, :])
+                    zero_special_label_list.append(data_arr[i_t])
+                    # zero_special_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+                else:
+                    zero_workday_data_list.append(data_for_now[i_t, :, :])
+                    zero_workday_label_list.append(data_arr[i_t])
+                    # zero_workday_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+            else:
+                positive_data_list.append(data_for_now[i_t, :, :])
+                positive_label_list.append(data_arr[i_t])
+                # positive_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+        print "finish %s" % dt_str
+
+    cnt_positive = len(positive_label_list)
+    cnt_zero_workday = len(zero_workday_label_list)
+    cnt_zero_special = len(zero_special_label_list)
+    total_data_cnt = cnt_zero_special + cnt_zero_workday + cnt_positive
+    print "pre total: %d, pos: %d, rate %.3f" % (total_data_cnt, cnt_positive, float(cnt_positive)/float(total_data_cnt))
+
+
+    train_data_ratio = 0.8
+    zero_special_train_len = int(cnt_zero_special * train_data_ratio)
+    positive_label_train_len = int(cnt_positive * train_data_ratio)
+
+    print "start shuffling  cnt_zero_workday"
+    idx_of_workday = np.arange(cnt_zero_workday)
+    np.random.shuffle(idx_of_workday)
+    print "shuffling done cnt_zero_workday"
+
+    # sub_zero_workday_data_list = zero_workday_data_list[idx_of_workday[0:cnt_positive]]
+    # sub_zero_workday_label_list = zero_workday_label_list[idx_of_workday[0:cnt_positive]]
+    # print "finish first ass"
+    random_start = random.randint(0,cnt_zero_workday - cnt_positive - 1)
+    print "random_start %d" % random_start
+
+    sub_zero_workday_data_list = zero_workday_data_list[random_start: random_start + cnt_positive]
+
+    sub_zero_workday_label_list = zero_workday_label_list[random_start: random_start + cnt_positive]
+
+    zero_workday_train_len = int(cnt_positive * train_data_ratio)
+
+    all_train_data_list = np.array(zero_special_data_list[0:zero_special_train_len] + positive_data_list[0:positive_label_train_len] + sub_zero_workday_data_list[0:zero_workday_train_len])
+    all_train_label_list =np.array(zero_special_label_list[0:zero_special_train_len] + positive_label_list[0:positive_label_train_len] + sub_zero_workday_label_list[0:zero_workday_train_len])
+
+    print "finish trainset ass"
+
+    all_val_data_list = np.array(zero_special_data_list[zero_special_train_len:-1] + positive_data_list[positive_label_train_len:-1] + sub_zero_workday_data_list[zero_workday_train_len:-1])
+    all_val_label_list = np.array(zero_special_label_list[zero_special_train_len:-1] + positive_label_list[positive_label_train_len:-1] +sub_zero_workday_label_list[zero_workday_train_len:-1])
+    print "finish val ass"
+
+    print "start shuffling 1"
+    idx_of_train = np.arange(len(all_train_label_list))
+    np.random.shuffle(idx_of_train)
+    print "shuffling done 1"
+
+    print "data assigning 1"
+    all_train_data_list = all_train_data_list[idx_of_train[:]]
+    all_train_label_list = all_train_label_list[idx_of_train[:]]
+    print "done data assigning 1"
+
+    print "start shuffling 2"
+    idx_of_val = np.arange(len(all_val_label_list))
+    np.random.shuffle(idx_of_val)
+    print "shuffling done 2"
+
+    print "data assigning 2"
+    all_val_data_list = all_val_data_list[idx_of_val[:]]
+    all_val_label_list = all_val_label_list[idx_of_val[:]]
+    print "done data assigning 2"
+
+    sub_total = cnt_positive * 2 + cnt_zero_special
+    print "post total: %d, pos: %d, rate %.3f" % (sub_total, cnt_positive, float(cnt_positive)/float(sub_total))
+
+    out_params = {
+                  "out_data_length" : sub_total,
+                  "n_time_steps" : n_time_steps,
+                  "data_dim" : data_dim,
+                  "time_interval" : time_interval,
+                  "spatial_interval" : spatial_interval,
+                  "n_lng": width,
+                  "n_lat": height
+              }
+
+    print "start modeling"
+    data_dim = out_params["data_dim"]
+    timesteps = out_params["n_time_steps"]
+
+    # LSTM_dim = 64
+    # region_dim = 12
+    # dense_dim = 64
+    # validate_data_ratio = 1.0 - train_data_ratio
+    # Input tensor for sequences of 20 timesteps,
+    # each containing a 784-dimensional vector
+    # lstm_layers = [1, 2, 3]
+    # lstm_dims = [128, 64, 32, 16]
+    # batch_sizes = [64, 128, 256]
+    # dropouts = [0.2, 0.4, 0.6]
+    # dense_layers = [0,1,2]
+
+
+    input_sequences = Input(shape=(timesteps, data_dim))
+
+    #2 layer lstm
+    # for lstm_dim in lstm_dims:
+    lstm_dim = 32
+
+    lstm1 = LSTM(lstm_dim, return_sequences=True)(input_sequences)
+    lstm1 = Dropout(0.2)(lstm1)
+    lstm2 = LSTM(lstm_dim)(lstm1)
+    lstm2 = Dropout(0.2)(lstm2)
+
+    main_output = Dense(1, activation='sigmoid', name='main_output')(lstm2)
+    model = Model(inputs=input_sequences, outputs=main_output)
+
+    model.compile(loss='binary_crossentropy', #loss :rmse?
+                  optimizer='rmsprop',# optimizer: adam?
+                  metrics=['accuracy'])
+
+    print "start fitting model 2 layer"
 
     batch_size = 256
-    epochs = 30
-    model.fit(all_data_list, all_label_list,
-              batch_size=batch_size, epochs= epochs, shuffle=True,
-              validation_split=0.2, callbacks=[checkpointer, lrate, early_stoping])
+    epochs = 1
+    model.fit(all_train_data_list, all_train_label_list,
+              batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[])
 
-    # score, acc = model.evaluate(x_val, y_val,
+    #region_input = Input(shape=(region_dim, ), name='region_input')
+    #concat_layer = keras.layers.concatenate([lstm3, region_input])
+    # We stack a deep densely-connected network on top
+    # x = Dense(128, activation='relu')(lstm2)
+    # x = Dropout(0.2)(x)
+    # x = Dense(64, activation='relu')(x)
+    # x = Dropout(0.2)(x)
+    # And finally we add the main logistic regression layer
+    # main_output = Dense(1, activation='sigmoid', name='main_output')(lstm)
+    # model_2_layer = Model(inputs=input_sequences, outputs=main_output)
+    #model = Model(inputs=[input_sequences, region_input], outputs=[main_output])
+
+    # checkpoint
+    # checkpointer = ModelCheckpoint(filepath="ckpt_pure_lstm.h5", verbose=1)
+    # learning rate adjust dynamic
+    # lrate = ReduceLROnPlateau(min_lr=0.00001)
+    # early_stoping = EarlyStopping(monitor='val_loss',patience=1)
+
+
+    # model_2_layer.compile(loss='mse', #loss :rmse?
+    #               optimizer='rmsprop',# optimizer: adam?
+    #               metrics=['accuracy'])
+    #
+    # batch_size = 256
+    # epochs = 1
+    # print "start fitting model_2_layer with batch_size: %d" % batch_size
+    # model_2_layer.fit(all_train_data_list, all_train_label_list,
+    #           batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[])
+
+
+    # model_2_layer.compile(loss='mse', #loss :rmse?
+    #               optimizer='adam',# optimizer: adam?
+    #               metrics=['accuracy'])
+    #
+    # print "start fitting model_2_layer with adam"
+    # model_2_layer.fit(all_train_data_list, all_train_label_list,
+    #           batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[])
+    # x = Dense(128, activation='relu')(lstm)
+    # x = Dropout(0.2)(x)
+    # x = Dense(64, activation='relu')(x)
+    # x = Dropout(0.2)(x)
+    # main_output_dense = Dense(1, activation='sigmoid', name='main_output')(x)
+    # model_2_layer_with_dense = Model(inputs=input_sequences, outputs=main_output_dense)
+    # model_2_layer_with_dense.compile(loss='mse', #loss :rmse?
+    #               optimizer='rmsprop',# optimizer: adam?
+    #               metrics=['accuracy'])
+    #
+    # print "start fitting model_2_layer with dense"
+    # model_2_layer_with_dense.fit(all_train_data_list, all_train_label_list,
+    #           batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[])
+    #
+    #
+
+
+
+
+    # score, acc = model.evaluate(all_val_data_list, all_val_label_list,
     #                             batch_size=batch_size)
     # print('Test score:', score)
     # print('Test accuracy:', acc)

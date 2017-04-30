@@ -3,6 +3,7 @@ from django.shortcuts import render_to_response
 from django.template import RequestContext
 from import_data import *
 from util import *
+from AccidentsPrediction.settings import BASE_DIR
 # Create your views here.
 def import_data_to_db():
     i = 11
@@ -23,7 +24,7 @@ def index(request):
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 def grid(request):
     out_data_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/grid_polyline.js'
-    sep = 500
+    sep = 1000
     min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file, sep= sep)
     return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
 def timeline(request):
@@ -63,6 +64,8 @@ def timeline(request):
     dt_end = datetime.datetime.strptime("2017-02-10 23:59:59",second_format)
     time_interval = 60
     spatial_interval = 1000
-    outpkl_file_path = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
-    prepare_lstm_data(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n=5, n_d= 3, n_w=3, **param_1000)
+    print "base_dir: %s" % BASE_DIR
+
+    outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
+    pure_lstm(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = 5, n_d = 3, n_w = 3, **param_1000)
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
