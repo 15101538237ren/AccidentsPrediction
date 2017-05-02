@@ -251,19 +251,62 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
     return work_day_accidents_for_train
 
 #生成训练用的数据generator
-def generate_arrays_for_train(data_list, label_list, idx_of_train, batch_size):
+def generate_arrays_of_train(data_list, label_list, batch_size):
+    len_arr = len(label_list)
+    idx_of_train = np.arange(len_arr)
+    np.random.shuffle(idx_of_train)
     while 1:
         X = []
         Y = []
-        cnt = 0
-        for bs in range(batch_size):
-            X.append(data_list[idx_of_train[cnt]])
-            Y.append(label_list[idx_of_train[cnt]])
-            cnt += 1
-        yield (np.array(X), np.array(Y))
-        print "cnt now of generator: %d" % cnt
+        for idx in range(len(idx_of_train)):
+            try:
+                X.append(data_list[idx_of_train[idx]])
+                Y.append(label_list[idx_of_train[idx]])
+                if (idx + 1) % batch_size == 0:
+                    yield (np.array(X), np.array(Y))
+                    X = []
+                    Y = []
+            except IndexError, e:
+                print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_train[idx], len(data_list))
+def generate_arrays_of_validation(data_list, label_list, batch_size):
+    len_arr = len(label_list)
+    idx_of_val = np.arange(len_arr)
+    np.random.shuffle(idx_of_val)
+    while 1:
         X = []
         Y = []
+        for idx in range(len_arr):
+            try:
+                X.append(data_list[idx_of_val[idx]])
+                Y.append(label_list[idx_of_val[idx]])
+                if (idx + 1) % batch_size == 0:
+                    yield (np.array(X), np.array(Y))
+                    X = []
+                    Y = []
+            except IndexError, e:
+                print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_val[idx], len(data_list))
+def get_array_of_seq(zero_special_list, positive_list, zero_workday_list):
+    cnt_zero_special = len(zero_special_list)
+    cnt_positive = len(positive_list)
+    cnt_zero_workday = len(zero_workday_list)
+
+    max_len = max(max(cnt_zero_workday, cnt_zero_special), cnt_positive)
+
+    print "get arr of max_len: %d " % max_len
+    rtn_arr = []
+    cnt = 0
+    while cnt < max_len:
+        if cnt < cnt_zero_workday:
+            rtn_arr.append(zero_workday_list[cnt])
+        if cnt < cnt_positive:
+            rtn_arr.append(positive_list[cnt])
+        if cnt < cnt_zero_special:
+            rtn_arr.append(zero_special_list[cnt])
+        cnt += 1
+        if cnt % 1000==0:
+            print "cnt %d, percent:%.3f" % (cnt, float(cnt)/float(max_len))
+    
+    return np.array(rtn_arr)
 def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
 
     region_type_list = range(1, 13)
@@ -415,25 +458,19 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
 
         print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_workday_len, float(tot_workday_len)/float(sub_total))
 
-        all_train_data_list = np.array(zero_special_data_list[0:zero_special_train_len] + temp_positive_data_list[0:positive_label_train_len] + zero_workday_data_list[0:zero_workday_train_len])
-        all_train_label_list =np.array(zero_special_label_list[0:zero_special_train_len] + temp_positive_label_list[0:positive_label_train_len] + zero_workday_label_list[0:zero_workday_train_len])
+        all_train_data_list = get_array_of_seq(zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len],zero_workday_data_list[0:zero_workday_train_len])
+
+        all_train_label_list =get_array_of_seq(zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len],zero_workday_label_list[0:zero_workday_train_len])
+
         # all_train_function_list = np.array(zero_special_function_list[0:zero_special_train_len] + temp_positive_function_list[0:positive_label_train_len]  + zero_workday_function_list[0:zero_workday_train_len])
         print "finish trainset ass"
 
-        all_val_data_list = np.array(zero_special_data_list[zero_special_train_len: tot_special_len] + temp_positive_data_list[positive_label_train_len: tot_workday_len] + zero_workday_data_list[zero_workday_train_len:tot_workday_len])
-        all_val_label_list = np.array(zero_special_label_list[zero_special_train_len: tot_special_len] + temp_positive_label_list[positive_label_train_len:tot_workday_len] +zero_workday_label_list[zero_workday_train_len:tot_workday_len])
+        all_val_data_list = get_array_of_seq(zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len])
+        all_val_label_list = get_array_of_seq(zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len])
+
         # all_val_function_list = np.array(zero_special_function_list[zero_special_train_len: tot_special_len] + temp_positive_function_list[positive_label_train_len:tot_workday_len] + zero_workday_function_list[zero_workday_train_len:tot_workday_len])
         print "finish val ass"
 
-        print "start shuffling of train"
-        idx_of_train = np.arange(len(all_train_label_list))
-        np.random.shuffle(idx_of_train)
-        print "shuffling done of train"
-
-        print "start shuffling of val"
-        idx_of_val = np.arange(len(all_val_label_list))
-        np.random.shuffle(idx_of_val)
-        print "shuffling done of val"
 
         out_params = {
                       "out_data_length" : sub_total,
@@ -479,8 +516,6 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
                       optimizer='rmsprop',# optimizer: adam?
                       metrics=['accuracy'])
 
-        print "start fitting model 2 layer"
-
         # checkpoint
         checkpointer = ModelCheckpoint(filepath="ckpt_pure_lstm_"+str(i)+".h5", verbose=1)
         # learning rate adjust dynamic
@@ -488,11 +523,17 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
         early_stoping = EarlyStopping(monitor='val_loss',patience=1)
 
         batch_size = 128
-        epochs = 1
 
-        samples_per_epoch = batch_size * 500
-        model.fit_generator(generate_arrays_for_train(all_train_data_list, all_train_label_list, idx_of_train, batch_size),
-        samples_per_epoch = samples_per_epoch,nb_epoch=epochs,validation_data=(all_val_data_list,all_val_label_list), max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping])
+        steps_per_epoch = 400
+        epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size)))
+
+        validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
+        print "epochs %d" % epochs
+        print "size of all_train_label_list %d" % ( len(all_train_label_list))
+
+        print "start fitting model"
+        model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
+        steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping])
 
         # model.fit(all_train_data_list, all_train_label_list,
         #           batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[checkpointer, lrate,early_stoping])
