@@ -253,6 +253,9 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
 #生成训练用的数据generator
 def generate_arrays_of_train(data_list, label_list, batch_size):
     len_arr = len(data_list)
+    len_lbl = len(label_list)
+    if len_arr != len_lbl:
+        print "len_arr != len_lbl of train generator"
     idx_of_train = np.arange(len_arr)
     np.random.shuffle(idx_of_train)
     while 1:
@@ -289,6 +292,9 @@ def generate_function_arrays_of_train(data_list, label_list, function_list, batc
                 print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_train[idx], len(data_list))
 def generate_arrays_of_validation(data_list, label_list, batch_size):
     len_arr = len(data_list)
+    len_lbl = len(label_list)
+    if len_arr != len_lbl:
+        print "len_arr != len_lbl of validator generator"
     idx_of_val = np.arange(len_arr)
     np.random.shuffle(idx_of_val)
     while 1:
@@ -328,11 +334,15 @@ def get_array_of_seq(zero_special_list, positive_list, zero_workday_list, zero_s
     cnt_zero_special = len(zero_special_list)
     cnt_positive = len(positive_list)
     cnt_zero_workday = len(zero_workday_list)
+
+    cnt_zero_workday_label = len(zero_workday_label_list)
+    cnt_positive_label = len(positive_label_list)
+    cnt_zero_special_label = len(zero_special_lable_list)
+
     rtn_arr = []
     rtn_lbl_arr = []
 
-    cnt_zero_workday_label = len(zero_workday_label_list)
-    if cnt_zero_workday != cnt_zero_workday_label:
+    if (cnt_zero_workday != cnt_zero_workday_label) or (cnt_positive != cnt_positive_label) or (cnt_zero_special != cnt_zero_special_label):
         print "size not match!"
         return np.array(rtn_arr), np.array(rtn_lbl_arr)
 
@@ -341,15 +351,15 @@ def get_array_of_seq(zero_special_list, positive_list, zero_workday_list, zero_s
     print "get arr of max_len: %d " % max_len
     cnt = 0
     while cnt < max_len:
-        if cnt < cnt_zero_workday:
-            rtn_arr.append(zero_workday_list[cnt])
-            rtn_lbl_arr.append(zero_workday_label_list[cnt])
-        if cnt < cnt_positive:
-            rtn_arr.append(positive_list[cnt])
-            rtn_lbl_arr.append(positive_label_list[cnt])
         if cnt < cnt_zero_special:
             rtn_arr.append(zero_special_list[cnt])
             rtn_lbl_arr.append(zero_special_lable_list[cnt])
+        if cnt < cnt_positive:
+            rtn_arr.append(positive_list[cnt])
+            rtn_lbl_arr.append(positive_label_list[cnt])
+        if cnt < cnt_zero_workday:
+            rtn_arr.append(zero_workday_list[cnt])
+            rtn_lbl_arr.append(zero_workday_label_list[cnt])
         cnt += 1
         if cnt % 10000==0:
             print "cnt %d, percent:%.3f" % (cnt, float(cnt)/float(max_len))
@@ -510,6 +520,7 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
     print "cnt_positive: %.3f, cnt_zero_workday: %.3f, cnt_zero_special: %.3f" % (float(cnt_positive)/float(total_data_cnt), float(cnt_zero_workday)/float(total_data_cnt), float(cnt_zero_special)/float(total_data_cnt))
 
     train_data_ratio = 0.8
+
     temp_positive_data_list = []
     temp_positive_label_list = []
     temp_positive_function_list = []
@@ -554,12 +565,14 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
 
     print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_workday_len, float(tot_workday_len)/float(sub_total))
 
-    all_train_data_list, all_train_label_list = get_array_of_seq(temp_zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len],zero_workday_data_list[0:zero_workday_train_len], temp_zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len],zero_workday_label_list[0:zero_workday_train_len])
+    all_train_data_list, all_train_label_list = get_array_of_seq(temp_zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len], zero_workday_data_list[0:zero_workday_train_len], temp_zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len], zero_workday_label_list[0:zero_workday_train_len])
     print "finish trainset ass"
 
     all_val_data_list, all_val_label_list = get_array_of_seq(temp_zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len], temp_zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len])
     print "finish val ass"
 
+
+    print "size of all_train_label_list %d" % len(all_train_label_list)
 
     out_params = {
                   "out_data_length" : sub_total,
@@ -623,12 +636,11 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
     early_stoping = EarlyStopping(monitor='val_loss',patience=1)
 
     batch_size = 128
-    steps_per_epoch = 1000
+    steps_per_epoch = 500
     epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size)))
 
     validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
     print "epochs %d" % epochs
-    print "size of all_train_label_list %d" % ( len(all_train_label_list))
 
     print "start fitting model"
 
