@@ -67,5 +67,5 @@ def timeline(request):
     print "base_dir: %s" % BASE_DIR
 
     outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
-    pure_lstm(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = 12, n_d = 6, n_w = 6, **param_1000)
+    pure_lstm(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = 6, n_d = 3, n_w = 3, **param_1000)
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
