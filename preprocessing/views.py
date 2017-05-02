@@ -61,11 +61,11 @@ def timeline(request):
     #get_work_day_data(work_day_bounds,time_interval=60, spatial_interval=1000)
     # get_holiday_and_tiaoxiu_data_for_train(time_interval=30, spatial_interval=1000, n = 5, n_d = 3, n_w = 4)
     dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
-    dt_end = datetime.datetime.strptime("2017-02-10 23:59:59",second_format)
+    dt_end = datetime.datetime.strptime("2017-02-28 23:59:59",second_format)
     time_interval = 60
     spatial_interval = 1000
     print "base_dir: %s" % BASE_DIR
 
     outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
-    pure_lstm(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = 5, n_d = 3, n_w = 3, **param_1000)
+    pure_lstm(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = 12, n_d = 6, n_w = 6, **param_1000)
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
