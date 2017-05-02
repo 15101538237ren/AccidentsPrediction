@@ -268,6 +268,25 @@ def generate_arrays_of_train(data_list, label_list, batch_size):
                     Y = []
             except IndexError, e:
                 print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_train[idx], len(data_list))
+def generate_function_arrays_of_train(data_list, label_list, function_list, batch_size):
+    len_arr = len(data_list)
+    idx_of_train = np.arange(len_arr)
+    np.random.shuffle(idx_of_train)
+    while 1:
+        X1 = []
+        X2 = []
+        Y = []
+        for idx in range(len(idx_of_train)):
+            try:
+                X1.append(data_list[idx_of_train[idx]])
+                X2.append(function_list[idx_of_train[idx]])
+                Y.append(label_list[idx_of_train[idx]])
+                if (idx + 1) % batch_size == 0:
+                    yield (np.array([X1, X2]), np.array(Y))
+                    X1 = []
+                    Y = []
+            except IndexError, e:
+                print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_train[idx], len(data_list))
 def generate_arrays_of_validation(data_list, label_list, batch_size):
     len_arr = len(data_list)
     idx_of_val = np.arange(len_arr)
@@ -285,28 +304,93 @@ def generate_arrays_of_validation(data_list, label_list, batch_size):
                     Y = []
             except IndexError, e:
                 print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_val[idx], len(data_list))
-def get_array_of_seq(zero_special_list, positive_list, zero_workday_list):
+def generate_function_arrays_of_validation(data_list, label_list,function_list, batch_size):
+    len_arr = len(data_list)
+    idx_of_val = np.arange(len_arr)
+    np.random.shuffle(idx_of_val)
+    while 1:
+        X1 = []
+        X2 = []
+        Y = []
+        for idx in range(len_arr):
+            try:
+                X1.append(data_list[idx_of_val[idx]])
+                X2.append(function_list[idx_of_val[idx]])
+                Y.append(label_list[idx_of_val[idx]])
+                if (idx + 1) % batch_size == 0:
+                    yield (np.array([X1,X2]), np.array(Y))
+                    X1 = []
+                    X2 = []
+                    Y = []
+            except IndexError, e:
+                print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_val[idx], len(data_list))
+def get_array_of_seq(zero_special_list, positive_list, zero_workday_list, zero_special_lable_list, positive_label_list, zero_workday_label_list):
     cnt_zero_special = len(zero_special_list)
     cnt_positive = len(positive_list)
     cnt_zero_workday = len(zero_workday_list)
+    rtn_arr = []
+    rtn_lbl_arr = []
+
+    cnt_zero_workday_label = len(zero_workday_label_list)
+    if cnt_zero_workday != cnt_zero_workday_label:
+        print "size not match!"
+        return np.array(rtn_arr), np.array(rtn_lbl_arr)
 
     max_len = max(max(cnt_zero_workday, cnt_zero_special), cnt_positive)
 
     print "get arr of max_len: %d " % max_len
-    rtn_arr = []
     cnt = 0
     while cnt < max_len:
         if cnt < cnt_zero_workday:
             rtn_arr.append(zero_workday_list[cnt])
+            rtn_lbl_arr.append(zero_workday_label_list[cnt])
         if cnt < cnt_positive:
             rtn_arr.append(positive_list[cnt])
+            rtn_lbl_arr.append(positive_label_list[cnt])
         if cnt < cnt_zero_special:
             rtn_arr.append(zero_special_list[cnt])
+            rtn_lbl_arr.append(zero_special_lable_list[cnt])
         cnt += 1
-        if cnt % 1000==0:
+        if cnt % 10000==0:
             print "cnt %d, percent:%.3f" % (cnt, float(cnt)/float(max_len))
 
-    return np.array(rtn_arr)
+    return np.array(rtn_arr), np.array(rtn_lbl_arr)
+def get_array_of_seq_of_function(zero_special_list, positive_list, zero_workday_list, zero_special_lable_list, positive_label_list, zero_workday_label_list, zero_special_function_list,temp_positive_function_list, zero_workday_function_list):
+    cnt_zero_special = len(zero_special_list)
+    cnt_positive = len(positive_list)
+    cnt_zero_workday = len(zero_workday_list)
+    cnt_zero_workday_function = len(zero_workday_function_list)
+    rtn_arr = []
+    rtn_lbl_arr = []
+    rtn_function_arr = []
+
+    cnt_zero_workday_label = len(zero_workday_label_list)
+    if cnt_zero_workday != cnt_zero_workday_label or cnt_zero_workday!= cnt_zero_workday_function:
+        print "size not match!"
+        return np.array(rtn_arr), np.array(rtn_lbl_arr), np.array(rtn_function_arr)
+
+    max_len = max(max(cnt_zero_workday, cnt_zero_special), cnt_positive)
+
+    print "get arr of max_len: %d " % max_len
+    cnt = 0
+    while cnt < max_len:
+        if cnt < cnt_zero_workday:
+            rtn_arr.append(zero_workday_list[cnt])
+            rtn_lbl_arr.append(zero_workday_label_list[cnt])
+            rtn_function_arr.append(zero_workday_function_list[cnt])
+        if cnt < cnt_positive:
+            rtn_arr.append(positive_list[cnt])
+            rtn_lbl_arr.append(positive_label_list[cnt])
+            rtn_function_arr.append(temp_positive_function_list[cnt])
+        if cnt < cnt_zero_special:
+            rtn_arr.append(zero_special_list[cnt])
+            rtn_lbl_arr.append(zero_special_lable_list[cnt])
+            rtn_function_arr.append(zero_special_function_list[cnt])
+        cnt += 1
+        if cnt % 10000==0:
+            print "cnt %d, percent:%.3f" % (cnt, float(cnt)/float(max_len))
+
+    return np.array(rtn_arr), np.array(rtn_lbl_arr), np.array(rtn_function_arr)
 def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
 
     region_type_list = range(1, 13)
@@ -341,15 +425,15 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
 
     zero_workday_data_list = []
     zero_workday_label_list = []
-    # zero_workday_function_list = []
+    zero_workday_function_list = []
 
     zero_special_data_list = []
     zero_special_label_list = []
-    # zero_special_function_list = []
+    zero_special_function_list = []
 
     positive_data_list = []
     positive_label_list = []
-    # positive_function_list = []
+    positive_function_list = []
 
     dt_list = []
     dt_now = dt_start
@@ -406,15 +490,15 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
                 if special == 1:
                     zero_special_data_list.append(data_for_now[i_t, :, :])
                     zero_special_label_list.append(data_arr[i_t])
-                    # zero_special_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+                    zero_special_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
                 else:
                     zero_workday_data_list.append(data_for_now[i_t, :, :])
                     zero_workday_label_list.append(data_arr[i_t])
-                    # zero_workday_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+                    zero_workday_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
             else:
                 positive_data_list.append(data_for_now[i_t, :, :])
                 positive_label_list.append(data_arr[i_t])
-                # positive_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+                positive_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
         print "finish %s" % dt_str
 
     cnt_positive = len(positive_label_list)
@@ -428,132 +512,140 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
     train_data_ratio = 0.8
     temp_positive_data_list = []
     temp_positive_label_list = []
-    # temp_positive_function_list = []
+    temp_positive_function_list = []
 
     temp_zero_special_data_list = []
     temp_zero_special_label_list = []
-    # temp_zero_special_function_list=[]
+    temp_zero_special_function_list=[]
 
     #将postive 扩大i倍
-    for i in [2, 4, 8, 16]:
-        print "%d size dataset" % i
-        for j in range(i):
-            temp_zero_special_data_list += positive_data_list
+    # for i in [2]:
+    i_fanbei = False
+    if i_fanbei:
+        i_size = 2
+        print "%d size dataset" % i_size
+        for j in range(i_size):
+            temp_positive_data_list += positive_data_list
             temp_positive_label_list += positive_label_list
-            # temp_positive_function_list += positive_function_list
+            temp_positive_function_list += positive_function_list
 
-        for j in range(int(i/2)):
-            temp_zero_special_label_list += zero_special_label_list
+        for j in range(int(i_size/2)):
             temp_zero_special_data_list += zero_special_data_list
-            # temp_zero_special_function_list += zero_special_function_list
+            temp_zero_special_label_list += zero_special_label_list
+            temp_zero_special_function_list += zero_special_function_list
+        checkpointer = ModelCheckpoint(filepath="ckpt_pure_lstm_"+str(i_size)+".h5", verbose=1)
+    else:
+        temp_positive_data_list += positive_data_list
+        temp_positive_label_list += positive_label_list
+        temp_positive_function_list += positive_function_list
 
-        tot_workday_len = len(temp_positive_label_list)
-        tot_special_len = len(temp_zero_special_label_list)
+        temp_zero_special_data_list += zero_special_data_list
+        temp_zero_special_label_list += zero_special_label_list
+        temp_zero_special_function_list += zero_special_function_list
+        checkpointer = ModelCheckpoint(filepath="ckpt_pure_lstm_origin.h5", verbose=1)
+    tot_workday_len = len(temp_positive_label_list)
+    tot_special_len = len(temp_zero_special_label_list)
 
-        zero_special_train_len = int(tot_special_len * train_data_ratio)
-        positive_label_train_len = int(tot_workday_len * train_data_ratio)
-        zero_workday_train_len = int(tot_workday_len * train_data_ratio)
+    zero_special_train_len = int(tot_special_len * train_data_ratio)
+    positive_label_train_len = int(tot_workday_len * train_data_ratio)
+    zero_workday_train_len = int(tot_workday_len * train_data_ratio)
 
-        sub_total = tot_workday_len * 2 + tot_special_len
+    sub_total = tot_workday_len * 2 + tot_special_len
 
-        print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_workday_len, float(tot_workday_len)/float(sub_total))
+    print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_workday_len, float(tot_workday_len)/float(sub_total))
 
-        all_train_data_list = get_array_of_seq(zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len],zero_workday_data_list[0:zero_workday_train_len])
+    all_train_data_list, all_train_label_list = get_array_of_seq(temp_zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len],zero_workday_data_list[0:zero_workday_train_len], temp_zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len],zero_workday_label_list[0:zero_workday_train_len])
+    print "finish trainset ass"
 
-        all_train_label_list =get_array_of_seq(zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len],zero_workday_label_list[0:zero_workday_train_len])
-
-        # all_train_function_list = np.array(zero_special_function_list[0:zero_special_train_len] + temp_positive_function_list[0:positive_label_train_len]  + zero_workday_function_list[0:zero_workday_train_len])
-        print "finish trainset ass"
-
-        all_val_data_list = get_array_of_seq(zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len])
-        all_val_label_list = get_array_of_seq(zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len])
-
-        # all_val_function_list = np.array(zero_special_function_list[zero_special_train_len: tot_special_len] + temp_positive_function_list[positive_label_train_len:tot_workday_len] + zero_workday_function_list[zero_workday_train_len:tot_workday_len])
-        print "finish val ass"
+    all_val_data_list, all_val_label_list = get_array_of_seq(temp_zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len], temp_zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len])
+    print "finish val ass"
 
 
-        out_params = {
-                      "out_data_length" : sub_total,
-                      "n_time_steps" : n_time_steps,
-                      "data_dim" : data_dim,
-                      "time_interval" : time_interval,
-                      "spatial_interval" : spatial_interval,
-                      "n_lng": width,
-                      "n_lat": height
-                  }
+    out_params = {
+                  "out_data_length" : sub_total,
+                  "n_time_steps" : n_time_steps,
+                  "data_dim" : data_dim,
+                  "time_interval" : time_interval,
+                  "spatial_interval" : spatial_interval,
+                  "n_lng": width,
+                  "n_lat": height
+              }
 
-        print "start modeling"
-        data_dim = out_params["data_dim"]
-        timesteps = out_params["n_time_steps"]
+    print "start modeling"
+    data_dim = out_params["data_dim"]
+    timesteps = out_params["n_time_steps"]
 
-        # LSTM_dim = 64
-        # region_dim = 12
-        # dense_dim = 64
-        # validate_data_ratio = 1.0 - train_data_ratio
-        # Input tensor for sequences of 20 timesteps,
-        # each containing a 784-dimensional vector
-        # lstm_layers = [1, 2, 3]
-        # lstm_dims = [128, 64, 32, 16]
-        # batch_sizes = [64, 128, 256]
-        # dropouts = [0.2, 0.4, 0.6]
-        # dense_layers = [0,1,2]
+    # LSTM_dim = 64
+    # region_dim = 12
+    # dense_dim = 64
+    # validate_data_ratio = 1.0 - train_data_ratio
+    # Input tensor for sequences of 20 timesteps,
+    # each containing a 784-dimensional vector
+    # lstm_layers = [1, 2, 3]
+    # lstm_dims = [128, 64, 32, 16]
+    # batch_sizes = [64, 128, 256]
+    # dropouts = [0.2, 0.4, 0.6]
+    # dense_layers = [0,1,2]
 
-        input_sequences = Input(shape=(timesteps, data_dim))
+    input_sequences = Input(shape=(timesteps, data_dim))
 
-        #2 layer lstm
-        # for lstm_dim in lstm_dims:
-        lstm_dim = 32
+    #2 layer lstm
+    # for lstm_dim in lstm_dims:
+    lstm_dim = 32
 
-        lstm1 = LSTM(lstm_dim, return_sequences=True)(input_sequences)
-        lstm1 = Dropout(0.2)(lstm1)
-        lstm2 = LSTM(lstm_dim)(lstm1)
-        lstm2 = Dropout(0.2)(lstm2)
+    lstm1 = LSTM(lstm_dim, return_sequences=True)(input_sequences)
+    lstm1 = Dropout(0.3)(lstm1)
+    lstm2 = LSTM(lstm_dim)(lstm1)
+    lstm2 = Dropout(0.3)(lstm2)
 
-        main_output = Dense(1, activation='sigmoid', name='main_output')(lstm2)
-        model = Model(inputs=input_sequences, outputs=main_output)
+    main_output = Dense(1, activation='sigmoid', name='main_output')(lstm2)
+    model = Model(inputs=input_sequences, outputs=main_output)
 
-        model.compile(loss='binary_crossentropy', #loss :rmse?
-                      optimizer='rmsprop',# optimizer: adam?
-                      metrics=['accuracy'])
+    # region_input = Input(shape=(region_dim, ), name='region_input')
+    # concat_layer = keras.layers.concatenate([lstm2, region_input])
+    # # We stack a deep densely-connected network on top
+    # x = Dense(32, activation='relu')(concat_layer)
+    # x = Dropout(0.2)(x)
+    # # x = Dense(64, activation='relu')(x)
+    # # x = Dropout(0.2)(x)
+    # # And finally we add the main logistic regression layer
+    # main_output = Dense(1, activation='sigmoid', name='main_output')(x)
+    #
+    # model = Model(inputs=[input_sequences, region_input], outputs=[main_output])
 
-        # checkpoint
-        checkpointer = ModelCheckpoint(filepath="ckpt_pure_lstm_"+str(i)+".h5", verbose=1)
-        # learning rate adjust dynamic
-        lrate = ReduceLROnPlateau(min_lr=0.00001)
-        early_stoping = EarlyStopping(monitor='val_loss',patience=1)
+    model.compile(loss='binary_crossentropy', #loss :rmse?
+                  optimizer='rmsprop',# optimizer: adam?
+                  metrics=['accuracy'])
 
-        batch_size = 128
+    # checkpoint
+    # learning rate adjust dynamic
+    lrate = ReduceLROnPlateau(min_lr=0.00001)
+    early_stoping = EarlyStopping(monitor='val_loss',patience=1)
 
-        steps_per_epoch = 400
-        epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size)))
+    batch_size = 128
+    steps_per_epoch = 1000
+    epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size)))
 
-        validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
-        print "epochs %d" % epochs
-        print "size of all_train_label_list %d" % ( len(all_train_label_list))
+    validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
+    print "epochs %d" % epochs
+    print "size of all_train_label_list %d" % ( len(all_train_label_list))
 
-        print "start fitting model"
-        model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
-        steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping])
+    print "start fitting model"
+
+    model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
+    steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping])
+
+        # model.fit_generator(generate_function_arrays_of_train(all_train_data_list, all_train_label_list, all_train_function_list, batch_size),
+        # steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_function_arrays_of_validation(all_val_data_list, all_val_label_list, all_val_function_list, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping])
 
         # model.fit(all_train_data_list, all_train_label_list,
         #           batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[checkpointer, lrate,early_stoping])
 
-        # region_input = Input(shape=(region_dim, ), name='region_input')
-        # concat_layer = keras.layers.concatenate([lstm2, region_input])
-        #
-        # # We stack a deep densely-connected network on top
-        # x = Dense(128, activation='relu')(concat_layer)
-        # x = Dropout(0.2)(x)
-        # x = Dense(64, activation='relu')(x)
-        # x = Dropout(0.2)(x)
-        # # And finally we add the main logistic regression layer
-        # main_output = Dense(1, activation='sigmoid', name='main_output')(x)
-        # # model_2_layer = Model(inputs=input_sequences, outputs=main_output)
-        # model = Model(inputs=[input_sequences, region_input], outputs=[main_output])
 
-        # model.compile(loss='binary_crossentropy', #loss :rmse?
-        #               optimizer='rmsprop',# optimizer: adam?
-        #               metrics=['accuracy'])
+
+
+        # model_2_layer = Model(inputs=input_sequences, outputs=main_output)
+
         #
         # print "start fitting model with batch_size: %d" % batch_size
         # model.fit([all_train_data_list, all_train_function_list], all_train_label_list,
