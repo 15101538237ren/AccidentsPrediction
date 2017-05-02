@@ -252,7 +252,7 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
 
 #生成训练用的数据generator
 def generate_arrays_of_train(data_list, label_list, batch_size):
-    len_arr = len(label_list)
+    len_arr = len(data_list)
     idx_of_train = np.arange(len_arr)
     np.random.shuffle(idx_of_train)
     while 1:
@@ -269,7 +269,7 @@ def generate_arrays_of_train(data_list, label_list, batch_size):
             except IndexError, e:
                 print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_train[idx], len(data_list))
 def generate_arrays_of_validation(data_list, label_list, batch_size):
-    len_arr = len(label_list)
+    len_arr = len(data_list)
     idx_of_val = np.arange(len_arr)
     np.random.shuffle(idx_of_val)
     while 1:
@@ -305,7 +305,7 @@ def get_array_of_seq(zero_special_list, positive_list, zero_workday_list):
         cnt += 1
         if cnt % 1000==0:
             print "cnt %d, percent:%.3f" % (cnt, float(cnt)/float(max_len))
-    
+
     return np.array(rtn_arr)
 def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
 
