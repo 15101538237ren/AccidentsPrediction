@@ -528,11 +528,14 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
         data_arr =[]
         for item in data_labels.content.split(","):
             if int(item) > 1:
-                data_arr.append([0., 0., 1.])
+                content_arr = [0., 0., 1.]
             elif int(item) == 1:
-                data_arr.append([0., 1., 0.])
+                content_arr = [0., 1., 0.]
             else:
-                data_arr.append([1., 0., 0.])
+                content_arr = [1., 0., 0.]
+            data_arr.append(content_arr)
+            # print "item: %s \tcontent_arr:" % item,
+            # print content_arr
 
 
         for i_t in range(height * width):
@@ -705,7 +708,7 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
             print "start fitting model"
 
             model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
-            steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate], initial_epoch=28)
+            steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate])#, initial_epoch=28)
 
 
         print "size of all_train_label_list %d" % len(all_train_label_list)
