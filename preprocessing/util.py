@@ -4,12 +4,6 @@ from  models import *
 from import_data import unicode_csv_reader
 import numpy as np #导入Numpy
 import pickle
-import keras
-from keras.models import Model,load_model
-from keras.layers import LSTM, Dense, Dropout, Input
-from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
-from sklearn.grid_search import GridSearchCV
-from keras.wrappers.scikit_learn import KerasClassifier
 reload(sys)
 sys.setdefaultencoding('utf8')
 ## 六环
@@ -284,7 +278,12 @@ def generate_arrays_of_train(data_list, label_list, batch_size):
                 X.append(data_list[idx_of_train[idx]])
                 Y.append(label_list[idx_of_train[idx]])
                 if (idx + 1) % batch_size == 0:
-                    yield (np.array(X), np.array(Y))
+                    X_arr = np.array(X)
+                    Y_arr = np.array(Y)
+                    # print "X shape:",
+                    # print X_arr.shape
+
+                    yield (X_arr, Y_arr)
                     X = []
                     Y = []
             except IndexError, e:
@@ -323,7 +322,10 @@ def generate_arrays_of_validation(data_list, label_list, batch_size):
                 X.append(data_list[idx_of_val[idx]])
                 Y.append(label_list[idx_of_val[idx]])
                 if (idx + 1) % batch_size == 0:
-                    yield (np.array(X), np.array(Y))
+                    X_arr = np.array(X)
+                    Y_arr = np.array(Y)
+                    # print "Val X shape:",
+                    yield (np.array(X_arr), np.array(Y_arr))
                     X = []
                     Y = []
             except IndexError, e:
@@ -419,20 +421,27 @@ def get_array_of_seq_of_function(zero_special_list, positive_list, zero_workday_
             print "cnt %d, percent:%.3f" % (cnt, float(cnt)/float(max_len))
 
     return np.array(rtn_arr), np.array(rtn_lbl_arr), np.array(rtn_function_arr)
-def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
 
+def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
+    #区域类型的list
     region_type_list = range(1, 13)
-    width = params["n_lng"]
-    height = params["n_lat"]
-    spatial_interval = params["d_len"]
 
-    # n_time_steps
-    n_time_steps = n + (n_d + n_w ) *2 + 2
+    #经度网格数量
+    width = params["n_lng"]
+    #纬度网格数量
+    height = params["n_lat"]
+
+    #空间间隔长度
+    spatial_interval = params["d_len"]
 
     # 内层每一个样本点的每个时间点对应的数据维度
     conv_dim = 9
-    data_dim = 4 + conv_dim
+    # data_dim = 4 + conv_dim
+
+    data_dim = 4
+    normalize_data = True
     #卷积操作相关
+
     x_shape = (1, 1, height, width) #n,c,h,w
     out_shape = (1, 1, height * width)
     w_shape = (1, 1, 3, 3) #f,c,hw,ww
@@ -444,27 +453,27 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
     holiday_dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
     tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(holiday_dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w)
 
-    region_functions = Region_Function.objects.filter(spatial_interval=spatial_interval).order_by("region_type")
-    region_matrix_dict = {}
-
-    for r_f in region_functions:
-        region_cnt_matrix = [int(item) for item in r_f.region_cnt_matrix.split(",")]
-        region_matrix_dict[str(r_f.region_type)] = region_cnt_matrix
+    # region_functions = Region_Function.objects.filter(spatial_interval=spatial_interval).order_by("region_type")
+    # region_matrix_dict = {}
+    #
+    # for r_f in region_functions:
+    #     region_cnt_matrix = [int(item) for item in r_f.region_cnt_matrix.split(",")]
+    #     region_matrix_dict[str(r_f.region_type)] = region_cnt_matrix
 
     zero_workday_data_list = []
     zero_workday_label_list = []
     zero_workday_addition_data = []
-    zero_workday_function_list = []
+    # zero_workday_function_list = []
 
     zero_special_data_list = []
     zero_special_label_list = []
     zero_special_addition_data = []
-    zero_special_function_list = []
+    # zero_special_function_list = []
 
     positive_data_list = []
     positive_label_list = []
     positive_addition_data = []
-    positive_function_list = []
+    # positive_function_list = []
 
     dt_list = []
     dt_now = dt_start
@@ -473,6 +482,7 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
         dt_now += datetime.timedelta(minutes= time_interval)
 
     dt_cnt = 0
+    count_limit = -1
     for dt_now in dt_list:
         dt_str = dt_now.strftime(second_format)
         dt_str_date = dt_now.strftime(date_format)
@@ -480,83 +490,99 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
             continue
         dt_cnt += 1
 
-        if dt_str_date in holiday_3_list_flatten:
-            data_now = holiday_3_acc[dt_str]
-            special = 1
-        elif dt_str_date in holiday_7_list_flatten:
-            data_now = holiday_7_acc[dt_str]
-            special = 1
-        elif dt_str_date in tiaoxiu_list:
-            data_now = tiaoxiu_acc[dt_str]
-            special = 1
-        else:
-            data_now = work_day_acc[dt_str]
-            special = 0
-
-        data_last_week = data_now[LAST_WEEK_KEY]
-        data_yesterday = data_now[YESTERDAY_KEY]
-        data_last_hours = data_now[LAST_N_HOUR_KEY]
-        data_labels = data_now[LABEL_KEY]
-
-        data_merge = data_last_week + data_yesterday
-        data_merge = data_merge + data_last_hours
-
-        len_data_merge = len(data_merge)
-        data_shape = (height * width, len_data_merge, data_dim)
-        data_for_now = np.zeros(data_shape)
-
-        for idx, data_i in enumerate(data_merge):
-            extra_data = [float(data_i.weather_severity), int(data_i.pm25), int(data_i.time_segment)]
-            data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
-            out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
-            # print "out_conv shape: ",
-            # print out_conv.shape
-            data_for_now[:, idx, 0] = [it for it in range(height * width)]
-            # data_for_now[:, idx, 1] = out_conv
-            # data_for_now[:, idx, 1] = data_content
-            for w_i in range(width):
-                for h_j in range(height):
-                    wh_id = w_i * height + h_j
-                    data_for_now[wh_id,idx, 1: 1+ conv_dim] = out_conv[0,0,h_j, w_i,:]
-
-            data_for_now[:, idx, 1+ conv_dim: data_dim] = extra_data
-        # data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
-
-        # print "data_for_now shape: ",
-        # print data_for_now.shape
-
-        data_arr =[]
-        for item in data_labels.content.split(","):
-            if int(item) > 1:
-                content_arr = [0., 0., 1.]
-            elif int(item) == 1:
-                content_arr = [0., 1., 0.]
+        if dt_cnt < count_limit or count_limit < 0:
+            if dt_str_date in holiday_3_list_flatten:
+                data_now = holiday_3_acc[dt_str]
+                special = 1
+            elif dt_str_date in holiday_7_list_flatten:
+                data_now = holiday_7_acc[dt_str]
+                special = 1
+            elif dt_str_date in tiaoxiu_list:
+                data_now = tiaoxiu_acc[dt_str]
+                special = 1
             else:
-                content_arr = [1., 0., 0.]
-            data_arr.append(content_arr)
-            # print "item: %s \tcontent_arr:" % item,
-            # print content_arr
+                data_now = work_day_acc[dt_str]
+                special = 0
 
+            data_last_week = data_now[LAST_WEEK_KEY]
+            data_yesterday = data_now[YESTERDAY_KEY]
+            data_last_hours = data_now[LAST_N_HOUR_KEY]
+            data_labels = data_now[LABEL_KEY]
 
-        for i_t in range(height * width):
-            addition_data = [i_t, data_labels.weather_severity, data_labels.pm25]
-            if data_arr[i_t] == 0:
-                if special == 1:
-                    zero_special_data_list.append(data_for_now[i_t, :, :])
-                    zero_special_label_list.append(data_arr[i_t])
-                    zero_special_addition_data.append(addition_data)
-                    zero_special_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+            data_merge = data_last_week + data_yesterday
+            data_merge = data_merge + data_last_hours
+
+            len_data_merge = len(data_merge)
+            # data_shape = (height * width, len_data_merge)
+            data_shape = (height * width, len_data_merge, data_dim)
+            data_for_now = np.zeros(data_shape)
+
+            for idx, data_i in enumerate(data_merge):
+                if normalize_data:
+                    extra_data = [float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0]
                 else:
-                    zero_workday_data_list.append(data_for_now[i_t, :, :])
-                    zero_workday_label_list.append(data_arr[i_t])
-                    zero_workday_addition_data.append(addition_data)
-                    zero_workday_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
-            else:
-                positive_data_list.append(data_for_now[i_t, :, :])
-                positive_label_list.append(data_arr[i_t])
-                positive_addition_data.append(addition_data)
-                positive_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
-        print "finish %s" % dt_str
+                    extra_data = [float(data_i.weather_severity), float(data_i.pm25), float(data_i.time_segment)]
+                data_content = np.array([int(item) for item in data_i.content.split(",")])
+                # data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
+                # out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
+                # print "out_conv shape: ",
+                # print out_conv.shape
+                # data_for_now[:, idx, 0] = [it for it in range(height * width)]
+                # data_for_now[:, idx, 1] = out_conv
+                data_for_now[:, idx, 0] = data_content
+                # data_for_now[:, idx] = data_content
+                # for w_i in range(width):
+                #     for h_j in range(height):
+                #         wh_id = w_i * height + h_j
+                #         data_for_now[wh_id,idx, 1: 1+ conv_dim] = out_conv[0,0,h_j, w_i,:]
+
+                data_for_now[:, idx, 1: data_dim] = extra_data
+            # data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
+
+            # print "data_for_now shape: ",
+            # print data_for_now.shape
+
+            data_arr =[]
+            for item in data_labels.content.split(","):
+                # if int(item) > 1:
+                #     content_arr = [0, 0, 1]
+                # elif int(item) == 1:
+                #     content_arr = [0, 1, 0]
+                # else:
+                #     content_arr = [1, 0, 0]
+                # data_arr.append(content_arr)
+
+                if int(item) > 0:
+                    content_to_append = 1
+                else:
+                    content_to_append = 0
+                data_arr.append(content_to_append)
+                # print "item: %s \tcontent_arr:" % item,
+                # print content_arr
+
+
+            for i_t in range(height * width):
+                addition_data = [i_t, data_labels.weather_severity, data_labels.pm25]
+                if data_arr[i_t] == 0:#data_arr[i_t] == [1, 0, 0]:
+                    if special == 1:
+                        zero_special_data_list.append(data_for_now[i_t, :, :])
+                        # zero_special_data_list.append(data_for_now[i_t, :])
+                        zero_special_label_list.append(data_arr[i_t])
+                        zero_special_addition_data.append(addition_data)
+                        # zero_special_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+                    else:
+                        zero_workday_data_list.append(data_for_now[i_t, :, :])
+                        # zero_workday_data_list.append(data_for_now[i_t, :])
+                        zero_workday_label_list.append(data_arr[i_t])
+                        zero_workday_addition_data.append(addition_data)
+                        # zero_workday_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+                else:
+                    positive_data_list.append(data_for_now[i_t, :, :])
+                    # positive_data_list.append(data_for_now[i_t, :])
+                    positive_label_list.append(data_arr[i_t])
+                    positive_addition_data.append(addition_data)
+                    # positive_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+            print "finish %s" % dt_str
 
     cnt_positive = len(positive_label_list)
     cnt_zero_workday = len(zero_workday_label_list)
@@ -570,213 +596,107 @@ def pure_lstm(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w
     train_data_ratio = 0.8
 
 
-    i_size_list = [2]
-    i_fanbei = False
-    for i_size in i_size_list:
-        temp_positive_data_list = []
-        temp_positive_label_list = []
-        temp_postive_addition_data = []
-        temp_positive_function_list = []
+    # i_size_list = [2]
+    # i_fanbei = False
+    # for i_size in i_size_list:
+    temp_positive_data_list = []
+    temp_positive_label_list = []
+    temp_postive_addition_data = []
+    temp_positive_function_list = []
 
-        temp_zero_special_data_list = []
-        temp_zero_special_label_list = []
-        temp_zero_special_addition_data = []
-        temp_zero_special_function_list=[]
-        #将postive 扩大i倍
-        # for i in [2]:
-        if i_fanbei:
-            print "%d size dataset" % i_size
-            for j in range(i_size):
-                temp_positive_data_list += positive_data_list
-                temp_positive_label_list += positive_label_list
-                temp_postive_addition_data += positive_addition_data
-                temp_positive_function_list += positive_function_list
-
-            for j in range(int(i_size/2)):
-                temp_zero_special_data_list += zero_special_data_list
-                temp_zero_special_label_list += zero_special_label_list
-                temp_zero_special_addition_data += zero_special_addition_data
-                temp_zero_special_function_list += zero_special_function_list
-            checkpointer = ModelCheckpoint(filepath="ckpt_pure_lstm_"+str(i_size)+".h5", verbose=1)
-        else:
-            temp_positive_data_list += positive_data_list
-            temp_positive_label_list += positive_label_list
-            temp_postive_addition_data += positive_addition_data
-            temp_positive_function_list += positive_function_list
-
-            temp_zero_special_data_list += zero_special_data_list
-            temp_zero_special_label_list += zero_special_label_list
-            temp_zero_special_addition_data += zero_special_addition_data
-            temp_zero_special_function_list += zero_special_function_list
-            checkpointer = ModelCheckpoint(filepath="ckpt_pure_lstm_origin.h5", verbose=1)
-        tot_workday_len = len(temp_positive_label_list)
-        tot_special_len = len(temp_zero_special_label_list)
-
-        zero_special_train_len = int(tot_special_len * train_data_ratio)
-        positive_label_train_len = int(tot_workday_len * train_data_ratio)
-        zero_workday_train_len = int(tot_workday_len * train_data_ratio)
-
-        sub_total = tot_workday_len * 2 + tot_special_len
-        print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_workday_len, float(tot_workday_len)/float(sub_total))
-
-        out_params = {
-                      "out_data_length" : sub_total,
-                      "n_time_steps" : n_time_steps,
-                      "data_dim" : data_dim,
-                      "time_interval" : time_interval,
-                      "spatial_interval" : spatial_interval,
-                      "n_lng": width,
-                      "n_lat": height
-                  }
-        data_dim = out_params["data_dim"]
-        timesteps = out_params["n_time_steps"]
-        addition_data_dim = 3
-
-        input_sequences = Input(shape=(timesteps, data_dim))
-
-        #2 layer lstm
-        # for lstm_dim in lstm_dims:
-        lstm_dim = n_time_steps
-
-        lstm1 = LSTM(lstm_dim, return_sequences=True)(input_sequences)
-        lstm1 = Dropout(0.5)(lstm1)
-        lstm2 = LSTM(lstm_dim)(lstm1)
-        lstm2 = Dropout(0.5)(lstm2)
-
-        lrate = ReduceLROnPlateau(min_lr=0.00001)
-        early_stoping = EarlyStopping(monitor='val_loss',patience=1)
-
-        batch_size = 128
-        steps_per_epoch = 1000
-
-        addition_data = False
-        if addition_data:
-            all_train_data_list, all_train_label_list, all_train_addition_data = get_array_of_seq_of_function(temp_zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len], zero_workday_data_list[0:zero_workday_train_len], temp_zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len], zero_workday_label_list[0:zero_workday_train_len], temp_zero_special_addition_data[0:zero_special_train_len], temp_postive_addition_data[0:positive_label_train_len], zero_workday_addition_data[0:zero_workday_train_len])
-            print "finish trainset ass"
-
-            all_val_data_list, all_val_label_list, all_val_addition_data = get_array_of_seq_of_function(temp_zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len], temp_zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len], temp_zero_special_addition_data[zero_special_train_len: tot_special_len], temp_postive_addition_data[positive_label_train_len:tot_workday_len], zero_workday_addition_data[zero_workday_train_len:tot_workday_len])
-            print "finish val ass"
-
-            print "start modeling"
-
-            add_input = Input(shape=(addition_data_dim, ), name='add_input')
-            concat_layer = keras.layers.concatenate([lstm2, add_input])
-            # We stack a deep densely-connected network on top
-            x = Dense(32, activation='relu')(concat_layer)
-            x = Dropout(0.4)(x)
-            # x = Dense(64, activation='relu')(x)
-            # x = Dropout(0.4)(x)
-            # And finally we add the main logistic regression layer
-            main_output = Dense(3 , activation='sigmoid', name='main_output')(x)
-
-            model = Model(inputs=[input_sequences, add_input], outputs=[main_output])
-            model.compile(loss='binary_crossentropy', #loss :rmse?
-                          optimizer='rmsprop',# optimizer: adam?
-                          metrics=['accuracy'])
-            epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size)))
-
-            validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
-            print "epochs %d" % epochs
-
-            print "start fitting model"
-
-            model.fit_generator(generate_function_arrays_of_train(all_train_data_list, all_train_label_list, all_train_addition_data, batch_size),
-            steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_function_arrays_of_validation(all_val_data_list, all_val_label_list, all_val_addition_data, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate])
-
-        else:
-            all_train_data_list, all_train_label_list = get_array_of_seq(temp_zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len], zero_workday_data_list[0:zero_workday_train_len], temp_zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len], zero_workday_label_list[0:zero_workday_train_len])
-            print "finish trainset ass"
-
-            all_val_data_list, all_val_label_list = get_array_of_seq(temp_zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len], temp_zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len])
-            print "finish val ass"
-
-            print "start modeling"
-            main_output = Dense(3, activation='softmax', name='main_output')(lstm2)
-            #model = load_model("ckpt_pure_lstm_"+str(i_size)+".h5")
-            model = Model(inputs=input_sequences, outputs=main_output)
-            # model.compile(loss='binary_crossentropy', #loss :rmse?
-            #               optimizer='rmsprop',# optimizer: adam?
-            #               metrics=['accuracy'])
-
-            model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['mse','accuracy'])
-
-            epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size)))
-
-            validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
-            print "epochs %d" % epochs
-
-            print "start fitting model"
-
-            model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
-            steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate])#, initial_epoch=28)
-
-
-        print "size of all_train_label_list %d" % len(all_train_label_list)
-
-
-
-
-    # LSTM_dim = 64
-    # region_dim = 12
-    # dense_dim = 64
-    # validate_data_ratio = 1.0 - train_data_ratio
-    # Input tensor for sequences of 20 timesteps,
-    # each containing a 784-dimensional vector
-    # lstm_layers = [1, 2, 3]
-    # lstm_dims = [128, 64, 32, 16]
-    # batch_sizes = [64, 128, 256]
-    # dropouts = [0.2, 0.4, 0.6]
-    # dense_layers = [0,1,2]
-
+    temp_zero_special_data_list = []
+    temp_zero_special_label_list = []
+    temp_zero_special_addition_data = []
+    temp_zero_special_function_list=[]
+    #     #将postive 扩大i倍
+    #     # for i in [2]:
+    #     if i_fanbei:
+    #         print "%d size dataset" % i_size
+    #         for j in range(i_size):
+    #             temp_positive_data_list += positive_data_list
+    #             temp_positive_label_list += positive_label_list
+    #             temp_postive_addition_data += positive_addition_data
+    #             # temp_positive_function_list += positive_function_list
     #
+    #         for j in range(int(i_size/2)):
+    #             temp_zero_special_data_list += zero_special_data_list
+    #             temp_zero_special_label_list += zero_special_label_list
+    #             temp_zero_special_addition_data += zero_special_addition_data
+    #             # temp_zero_special_function_list += zero_special_function_list
+    #         checkpointer = ModelCheckpoint(filepath="ckpt_pure_lstm_"+str(i_size)+".h5", verbose=1)
+    #     else:
+    temp_positive_data_list += positive_data_list
+    temp_positive_label_list += positive_label_list
+    temp_postive_addition_data += positive_addition_data
+    # temp_positive_function_list += positive_function_list
 
-        # model.fit_generator(generate_function_arrays_of_train(all_train_data_list, all_train_label_list, all_train_function_list, batch_size),
-        # steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_function_arrays_of_validation(all_val_data_list, all_val_label_list, all_val_function_list, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping])
+    temp_zero_special_data_list += zero_special_data_list
+    temp_zero_special_label_list += zero_special_label_list
+    temp_zero_special_addition_data += zero_special_addition_data
+    # temp_zero_special_function_list += zero_special_function_list
+    tot_positive_len = len(temp_positive_label_list)
+    tot_special_len = int(len(temp_zero_special_label_list) / 4)
+    tot_zero_workday_len = tot_positive_len - tot_special_len
 
-        # model.fit(all_train_data_list, all_train_label_list,
-        #           batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[checkpointer, lrate,early_stoping])
+    # zero_special_train_len = int(tot_special_len * train_data_ratio)
+    # positive_label_train_len = int(tot_workday_len * train_data_ratio)
+    # zero_workday_train_len = int(tot_workday_len * train_data_ratio)
 
+    sub_total = tot_positive_len + tot_special_len + tot_zero_workday_len
+    print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_positive_len, float(tot_positive_len)/float(sub_total))
 
-
-
-        # model_2_layer = Model(inputs=input_sequences, outputs=main_output)
-
-        #
-        # print "start fitting model with batch_size: %d" % batch_size
-        # model.fit([all_train_data_list, all_train_function_list], all_train_label_list,
-        #           batch_size=batch_size, epochs= epochs,validation_data=([all_val_data_list, all_val_function_list],all_val_label_list), callbacks=[lrate, early_stoping,checkpointer])
-
-
-    # model_2_layer.compile(loss='mse', #loss :rmse?
-    #               optimizer='adam',# optimizer: adam?
-    #               metrics=['accuracy'])
+    # addition_data = False
+    # if addition_data:
+    #     pass
+    #     addition_data_dim = 3
+    #     all_train_data_list, all_train_label_list, all_train_addition_data = get_array_of_seq_of_function(temp_zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len], zero_workday_data_list[0:zero_workday_train_len], temp_zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len], zero_workday_label_list[0:zero_workday_train_len], temp_zero_special_addition_data[0:zero_special_train_len], temp_postive_addition_data[0:positive_label_train_len], zero_workday_addition_data[0:zero_workday_train_len])
+    #     print "finish trainset ass"
     #
-    # print "start fitting model_2_layer with adam"
-    # model_2_layer.fit(all_train_data_list, all_train_label_list,
-    #           batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[])
-    # x = Dense(128, activation='relu')(lstm)
-    # x = Dropout(0.2)(x)
-    # x = Dense(64, activation='relu')(x)
-    # x = Dropout(0.2)(x)
-    # main_output_dense = Dense(1, activation='sigmoid', name='main_output')(x)
-    # model_2_layer_with_dense = Model(inputs=input_sequences, outputs=main_output_dense)
-    # model_2_layer_with_dense.compile(loss='mse', #loss :rmse?
-    #               optimizer='rmsprop',# optimizer: adam?
-    #               metrics=['accuracy'])
+    #     all_val_data_list, all_val_label_list, all_val_addition_data = get_array_of_seq_of_function(temp_zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len], temp_zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len], temp_zero_special_addition_data[zero_special_train_len: tot_special_len], temp_postive_addition_data[positive_label_train_len:tot_workday_len], zero_workday_addition_data[zero_workday_train_len:tot_workday_len])
+    #     print "finish val ass"
     #
-    # print "start fitting model_2_layer with dense"
-    # model_2_layer_with_dense.fit(all_train_data_list, all_train_label_list,
-    #           batch_size=batch_size, epochs= epochs,validation_data=(all_val_data_list,all_val_label_list), callbacks=[])
+    #     print "start modeling"
     #
+    #     add_input = Input(shape=(addition_data_dim, ), name='add_input')
+    #     concat_layer = keras.layers.concatenate([lstm2, add_input])
+    #     # We stack a deep densely-connected network on top
+    #     x = Dense(32, activation='relu')(concat_layer)
+    #     x = Dropout(0.4)(x)
+    #     # x = Dense(64, activation='relu')(x)
+    #     # x = Dropout(0.4)(x)
+    #     # And finally we add the main logistic regression layer
+    #     main_output = Dense(3 , activation='sigmoid', name='main_output')(x)
     #
+    #     model = Model(inputs=[input_sequences, add_input], outputs=[main_output])
+    #     model.compile(loss='binary_crossentropy', #loss :rmse?
+    #                   optimizer='rmsprop',# optimizer: adam?
+    #                   metrics=['accuracy'])
+    #     epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size)))
+    #
+    #     validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
+    #     print "epochs %d" % epochs
+    #
+    #     print "start fitting model"
+    #
+    #     model.fit_generator(generate_function_arrays_of_train(all_train_data_list, all_train_label_list, all_train_addition_data, batch_size),
+    #     steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_function_arrays_of_validation(all_val_data_list, all_val_label_list, all_val_addition_data, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate])
+    #
+    # else:
 
-    # model = load_model('ckpt_pure_lstm.h5')
-    #
-    # score, acc = model.evaluate([all_val_data_list, all_val_function_list],all_val_label_list,
-    #                             batch_size=batch_size)
-    # print('Test score:', score)
-    # print('Test accuracy:', acc)
-    return 0
+    # all_train_data_list, all_train_label_list = get_array_of_seq(temp_zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len], zero_workday_data_list[0:zero_workday_train_len], temp_zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len], zero_workday_label_list[0:zero_workday_train_len])
+    # print "finish trainset ass"
+
+    # all_val_data_list, all_val_label_list = get_array_of_seq(temp_zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len], temp_zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len])
+    # print "finish val ass"
+
+    all_data_list, all_label_list = get_array_of_seq(temp_zero_special_data_list[0: tot_special_len], temp_positive_data_list[0: tot_positive_len], zero_workday_data_list[0:tot_zero_workday_len], temp_zero_special_label_list[0: tot_special_len], temp_positive_label_list[0:tot_positive_len], zero_workday_label_list[0:tot_zero_workday_len])
+    print "finish get all data"
+
+    return [all_data_list,all_label_list]
+
+def get_data_for_train_and_val(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
+    return generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params)
+
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w):
 

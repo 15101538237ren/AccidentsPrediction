@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import xlrd,sys,os,datetime,pytz,pickle,csv,calendar
+import xlrd,sys,os,datetime,pytz,pickle,csv,calendar,json
 from models import *
 from preprocessing.baidumap import BaiduMap
 reload(sys)
@@ -88,6 +88,23 @@ def import_call_incidence_data_of_2016(input_call_incidence_file):
             print "finish 2nd stage"
     print("import call 122 finished!")
 
+#导入App事故数据
+def import_app_incidences_data_from_json(input_json_filepath):
+    input_file = open(input_json_filepath,"r")
+    input_str = input_file.read().decode("utf-8")
+    json_obj = json.loads(input_str)
+    for item in json_obj:
+        longitude, latitude, latlng_address, create_time = item[0], item[1], item[2], item[3]
+        try:
+            if not isinstance(longitude, unicode) or not isinstance(latitude,unicode) or not isinstance(latlng_address,unicode) or not isinstance(create_time,unicode):
+                continue
+            create_time = datetime.datetime.strptime(create_time,"%Y-%m-%d %H:%M:%S")
+            app_incidence = App_Incidence(longitude=longitude, latitude=latitude, place=latlng_address,
+                                      create_time=create_time)
+            app_incidence.save()
+        except Exception,e:
+            print "decode failed: %s" % str(e)
+            continue
 def import_violation_data(input_file_path):
     csvfile = open(input_file_path,"rb")
     reader = csv.reader(csvfile)

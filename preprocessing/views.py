@@ -4,6 +4,7 @@ from django.template import RequestContext
 from import_data import *
 from util import *
 from AccidentsPrediction.settings import BASE_DIR
+from classifier import *
 # Create your views here.
 def import_data_to_db():
     i = 11
@@ -21,6 +22,8 @@ def import_data_to_db():
     air_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/air_houbao.csv'
     import_air_quality_to_db(air_file)
 def index(request):
+    input_json_filepath = "/Users/Ren/Downloads/app_incidences_query.json"
+    import_app_incidences_data_from_json(input_json_filepath)
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 def grid(request):
     out_data_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/grid_polyline.js'
@@ -67,5 +70,34 @@ def timeline(request):
     print "base_dir: %s" % BASE_DIR
 
     outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
-    pure_lstm(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = 6, n_d = 3, n_w = 3, **param_1000)
+    n = 12
+    n_d = n_w = 5
+
+    n_time_steps = n + (n_d + n_w ) * 2 + 2
+    split_ratio = 0.8
+
+    [all_data_list,all_label_list] = get_data_for_train_and_val(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **param_1000)
+
+    train_and_test_model_with_lstm(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+
+    all_data_list_flatten = [item.flatten() for item in all_data_list]
+    all_data_list = all_data_list_flatten
+
+    train_and_test_model_with_keras_logistic_regression(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_dense_network(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_2_layer_dense_network(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+
+    train_and_test_model_with_lda(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_qda(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_logistic_regression(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+
+    train_and_test_model_with_ada_boost(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_bagging(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_random_forest(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_gradient_boosting(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_extra_tree(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_decision_tree(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_svm(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_rbf_nu_svm(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
