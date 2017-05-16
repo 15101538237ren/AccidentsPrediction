@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-import sys,os,requests,urllib,json,math,pickle,datetime,random
+import sys,os,requests,urllib,json,math,pickle,datetime,simplejson,decimal
 from  models import *
 from import_data import unicode_csv_reader
 import numpy as np #导入Numpy
+from AccidentsPrediction.settings import BASE_DIR
 import pickle
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -46,6 +47,56 @@ LABEL_KEY = "LABEL"
 LAST_N_HOUR_KEY = "LAST_N"
 YESTERDAY_KEY = "YEST_ND"
 LAST_WEEK_KEY = "LAST_WEEK"
+
+error_mapping = {
+    "LOGIN_NEEDED": (1, "login needed"),
+    "PERMISSION_DENIED": (2, "permission denied"),
+    "DATABASE_ERROR": (3, "operate database error"),
+    "ONLY_FOR_AJAX": (4, "the url is only for ajax request")
+}
+
+class ApiError(Exception):
+    def __init__(self, key, **kwargs):
+        Exception.__init__(self)
+        self.key = key if key in error_mapping else "UNKNOWN"
+        self.kwargs = kwargs
+def ajax_required(func):
+    def __decorator(request, *args, **kwargs):
+        if request.is_ajax:
+            return func(request, *args, **kwargs)
+        else:
+            raise ApiError("ONLY_FOR_AJAX")
+    return __decorator
+
+def safe_new_datetime(d):
+    kw = [d.year, d.month, d.day]
+    if isinstance(d, datetime.datetime):
+        kw.extend([d.hour, d.minute, d.second, d.microsecond, d.tzinfo])
+    return datetime.datetime(*kw)
+
+def safe_new_date(d):
+    return datetime.date(d.year, d.month, d.day)
+
+class DatetimeJSONEncoder(simplejson.JSONEncoder):
+    """可以序列化时间的JSON"""
+
+    DATE_FORMAT = "%Y-%m-%d"
+    TIME_FORMAT = "%H:%M:%S"
+
+    def default(self, o):
+        if isinstance(o, datetime.datetime):
+            d = safe_new_datetime(o)
+            return d.strftime("%s %s" % (self.DATE_FORMAT, self.TIME_FORMAT))
+        elif isinstance(o, datetime.date):
+            d = safe_new_date(o)
+            return d.strftime(self.DATE_FORMAT)
+        elif isinstance(o, datetime.time):
+            return o.strftime(self.TIME_FORMAT)
+        elif isinstance(o, decimal.Decimal):
+            return str(o)
+        else:
+            return super(DatetimeJSONEncoder, self).default(o)
+
 def get_conv_kernal_crespond_data(x, w, b, conv_param):
   out = None
   N,C,H,W = x.shape
@@ -438,7 +489,7 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
     conv_dim = 9
     # data_dim = 4 + conv_dim
 
-    data_dim = 4
+    data_dim = 5 + conv_dim
     normalize_data = True
     #卷积操作相关
 
@@ -519,24 +570,28 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
 
             for idx, data_i in enumerate(data_merge):
                 if normalize_data:
-                    extra_data = [float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0]
+                    extra_data = [float(data_i.time_segment)/6.0,float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0, int(data_i.is_weekend)]
                 else:
-                    extra_data = [float(data_i.weather_severity), float(data_i.pm25), float(data_i.time_segment)]
-                data_content = np.array([int(item) for item in data_i.content.split(",")])
-                # data_content = np.array([int(item) for item in data_i.content.split(",")]).reshape(x_shape)
-                # out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
-                # print "out_conv shape: ",
-                # print out_conv.shape
+                    extra_data = [float(data_i.time_segment)]#float(data_i.weather_severity), float(data_i.pm25), float(data_i.time_segment)]#, int(data_i.is_weekend)]
+
+
+
                 # data_for_now[:, idx, 0] = [it for it in range(height * width)]
                 # data_for_now[:, idx, 1] = out_conv
-                data_for_now[:, idx, 0] = data_content
-                # data_for_now[:, idx] = data_content
-                # for w_i in range(width):
-                #     for h_j in range(height):
-                #         wh_id = w_i * height + h_j
-                #         data_for_now[wh_id,idx, 1: 1+ conv_dim] = out_conv[0,0,h_j, w_i,:]
+                data_content = np.array([int(item) for item in data_i.content.split(",")])
+                # data_for_now[:, idx, 0] = data_content
 
-                data_for_now[:, idx, 1: data_dim] = extra_data
+                data_content = data_content.reshape(x_shape)
+                out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
+                # print "out_conv shape: ",
+                # print out_conv.shape
+                # data_for_now[:, idx] = data_content
+                for w_i in range(width):
+                    for h_j in range(height):
+                        wh_id = w_i * height + h_j
+                        data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
+
+                data_for_now[:, idx, conv_dim: data_dim] = extra_data
             # data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
 
             # print "data_for_now shape: ",
@@ -1216,3 +1271,31 @@ def get_liuhuan_poi(output_file_path, sep = 500):
     generate_polylines_for_beijing(lng_coors,lat_coors,output_file_path)#,min_lat,max_lat,min_lng,max_lng)
     print 'min_lat: %f, max_lat: %f, min_lng: %f , max_lng: %f\n' % (min_lat, max_lat, min_lng, max_lng)
     return min_lat,max_lat,min_lng,max_lng
+
+def get_all_dt_in_call_incidences_db(start_time,end_time,time_interval=60):
+    tmp_dt = start_time
+    ret_list = []
+
+    while tmp_dt < end_time:
+        ret_list.append(tmp_dt.strftime(second_format))
+        tmp_dt += datetime.timedelta(minutes=time_interval)
+    return ret_list
+#获得指定时间段的事故,并写道文件中
+def get_call_incidences(dt_start, dt_end):
+    call_incidences = Call_Incidence.objects.filter(create_time__range=[dt_start,dt_end])
+    file_to_wrt_path = BASE_DIR + os.sep + "static" + os.sep + "points.json"
+    file_to_wrt = open(file_to_wrt_path,"w")
+
+    call_incidences_to_dump = []
+    for call_incidence in call_incidences:
+        call_incidence_tmp = {}
+        call_incidence_tmp["lng"] = call_incidence.longitude
+        call_incidence_tmp["lat"] = call_incidence.latitude
+        call_incidence_tmp["place"] = call_incidence.place
+        call_incidence_tmp["create_time"] = call_incidence.create_time
+        call_incidences_to_dump.append(call_incidence_tmp)
+
+    js_str = simplejson.dumps(call_incidences_to_dump, use_decimal=True,cls=DatetimeJSONEncoder)
+    file_to_wrt.write(js_str)
+
+    file_to_wrt.close()

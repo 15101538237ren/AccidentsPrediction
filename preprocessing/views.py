@@ -1,6 +1,7 @@
 # coding: utf-8
 from django.shortcuts import render_to_response
 from django.template import RequestContext
+from django.http import JsonResponse
 from import_data import *
 from util import *
 from AccidentsPrediction.settings import BASE_DIR
@@ -22,15 +23,7 @@ def import_data_to_db():
     air_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/air_houbao.csv'
     import_air_quality_to_db(air_file)
 def index(request):
-    input_json_filepath = "/Users/Ren/Downloads/app_incidences_query.json"
-    import_app_incidences_data_from_json(input_json_filepath)
-    return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
-def grid(request):
-    out_data_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/grid_polyline.js'
-    sep = 1000
-    min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file, sep= sep)
-    return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
-def timeline(request):
+
     # outpkl_file_path = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/accidents.pkl'
     #partition_geopoints_by_time(outpkl_file_path)
     #get_all_accidents_from_db(outpkl_file_path)
@@ -74,30 +67,62 @@ def timeline(request):
     n_d = n_w = 5
 
     n_time_steps = n + (n_d + n_w ) * 2 + 2
-    split_ratio = 0.8
+    split_ratio = 0.6
 
-    [all_data_list,all_label_list] = get_data_for_train_and_val(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **param_1000)
+    [all_data_list, all_label_list] = get_data_for_train_and_val(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **param_1000)
+    data_dim = 14
+    # train_and_test_model_with_gru(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
 
-    train_and_test_model_with_lstm(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
 
     all_data_list_flatten = [item.flatten() for item in all_data_list]
     all_data_list = all_data_list_flatten
+    train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
 
-    train_and_test_model_with_keras_logistic_regression(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_dense_network(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_2_layer_dense_network(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, all_data_list_flatten,all_label_list, split_ratio=split_ratio)
 
-    train_and_test_model_with_lda(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_qda(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_logistic_regression(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # no_of_pca = 1
+    # pca = PCA(n_components=n_time_steps)
+    # all_data_list = pca.fit_transform(all_data_list_flatten)
+    #
+    train_and_test_model_with_lda(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_qda(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_logistic_regression(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
 
-    train_and_test_model_with_ada_boost(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_bagging(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_random_forest(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_ada_boost(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_bagging(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_random_forest(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
     train_and_test_model_with_gradient_boosting(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_extra_tree(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_decision_tree(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_svm(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    # train_and_test_model_with_rbf_nu_svm(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-
+    train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_decision_tree(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_svm(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_rbf_nu_svm(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
+def grid(request):
+    out_data_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/grid_polyline.js'
+    sep = 1000
+    min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file, sep= sep)
+    return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
+def timeline(request):
+    start_time = datetime.datetime.strptime("2016-01-01 00:00:00",second_format)
+    end_time = datetime.datetime.strptime("2017-03-01 00:00:00",second_format)
+    time_interval = 60
+    dt_list = get_all_dt_in_call_incidences_db(start_time,end_time,time_interval=time_interval)
+    dt_start = start_time.strftime(second_format)
+    slider_cnts = len(dt_list)
+    print slider_cnts
     return render_to_response('prep/timeline.html', locals(), context_instance=RequestContext(request))
+#获取指定时间的事故情况
+@ajax_required
+def query_status(request):
+    time_interval = 60
+    datetime_query = request.POST.get("query_dt","2016-01-01 00:00:00")
+    from_dt = datetime.datetime.strptime(datetime_query,second_format)
+    end_dt = from_dt + datetime.timedelta(minutes=time_interval)
+    get_call_incidences(from_dt,end_dt)
+    addr = '/static/points.json'
+    response_dict = {}
+    response_dict["code"] = 0
+    response_dict["addr"] = addr
+    return JsonResponse(response_dict)
