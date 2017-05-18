@@ -52,8 +52,9 @@ def index(request):
     param_1000['d_lng'] = 0.012
     param_1000['n_lng'] = 29
     param_1000['n_lat'] = 32
-    # label_all_accidents(outpkl_file_path, 60, **param_1000)
-    # label_all_function_regions(input_file_list,**param_1000)
+
+    label_all_accidents(outpkl_file_path, 60, **param_1000)
+    label_all_function_regions(input_file_list,**param_1000)
     #return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 
     #get_work_day_data(work_day_bounds,time_interval=60, spatial_interval=1000)
@@ -69,36 +70,36 @@ def index(request):
     n_d = n_w = 5
 
     n_time_steps = n + (n_d + n_w ) * 2 + 2
-    split_ratio = 0.6
+    split_ratio = 0.7
 
-    [all_data_list, all_label_list] = get_data_for_train_and_val(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **param_1000)
-    data_dim = 14
+    [all_data_list, all_label_list] = generate_data_for_train_and_test(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **param_1000)
+    data_dim = 1
     # train_and_test_model_with_gru(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    # train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
 
 
     all_data_list_flatten = [item.flatten() for item in all_data_list]
     all_data_list = all_data_list_flatten
-    train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
 
-    # train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, all_data_list_flatten,all_label_list, split_ratio=split_ratio)
+    train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, all_data_list_flatten,all_label_list, split_ratio=split_ratio)
 
     # no_of_pca = 1
     # pca = PCA(n_components=n_time_steps)
     # all_data_list = pca.fit_transform(all_data_list_flatten)
     #
-    train_and_test_model_with_lda(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_qda(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_lda(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_qda(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
     # train_and_test_model_with_logistic_regression(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
 
-    train_and_test_model_with_ada_boost(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_bagging(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_random_forest(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_gradient_boosting(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_decision_tree(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    train_and_test_model_with_svm(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_ada_boost(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_bagging(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_random_forest(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_gradient_boosting(n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_decision_tree(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
+    # train_and_test_model_with_svm(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
     # train_and_test_model_with_rbf_nu_svm(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 def grid(request):

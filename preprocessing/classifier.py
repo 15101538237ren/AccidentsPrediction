@@ -193,7 +193,7 @@ def train_and_test_model_with_keras_logistic_regression(data_dim,n_time_steps,al
     print "start Training Keras Logistic Regression model"
     model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
     steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size),
-    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping, TensorBoard(log_dir='/tmp/lr')])#, initial_epoch=28)
+    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight={0: 1, 1: 19}, callbacks=[checkpointer, lrate,early_stoping, TensorBoard(log_dir='/tmp/lr')])#, initial_epoch=28)
     return 0
 
 #DAE

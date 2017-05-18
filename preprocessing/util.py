@@ -60,6 +60,7 @@ class ApiError(Exception):
         Exception.__init__(self)
         self.key = key if key in error_mapping else "UNKNOWN"
         self.kwargs = kwargs
+
 def ajax_required(func):
     def __decorator(request, *args, **kwargs):
         if request.is_ajax:
@@ -116,6 +117,7 @@ def get_conv_kernal_crespond_data(x, w, b, conv_param):
         # N*C*HH*WW, C*HH*WW = N*C*HH*WW, sum -> N*1
         out[:,f,i,j,:] = x_pad[:, :, i*S : i*S+HH, j*S : j*S+WW].flatten()
   return out
+
 def conv_forward_naive(x, w, b, conv_param):
   """
   A naive implementation of the forward pass for a convolutional layer.
@@ -161,45 +163,32 @@ def conv_forward_naive(x, w, b, conv_param):
   cache = (x, w, b, conv_param)
   return out, cache
 
-
 #获取数据库中工作日时段的所有事故相关的数据
-def get_work_day_data(data_bounds,time_interval, spatial_interval):
+def get_work_day_data(dt_start,dt_end,data_bounds,time_interval, spatial_interval):
     work_day_accidents = {}
     work_day_accidents_arr = []
     for day_start, day_end in data_bounds:
         dt_start = datetime.datetime.strptime(day_start + hour_0, second_format)
         dt_end = datetime.datetime.strptime(day_end + end_of_day, second_format)
-
-        # dt_now = dt_start
-        # dt_now_end_of_day = datetime.datetime.strptime(day_start + end_of_day, "%Y-%m-%d %H:%M:%S")
-        # datetime_list = []
-        # time_delta = datetime.timedelta(hours= 24)
-        # while dt_now < dt_end:
-        #     datetime_list.append([dt_now, dt_now_end_of_day])
-        #     dt_now += time_delta
-        #     dt_now_end_of_day += time_delta
-        # for dt_s, dt_e in datetime_list:
         accidents = Accidents_Array.objects.filter(time_interval= time_interval, spatial_interval= spatial_interval, create_time__range=[ dt_start, dt_end]).order_by("create_time")
         for accident in accidents:
-            time_str = accident.create_time.strftime(second_format)
-            work_day_accidents[time_str] = accident
-            work_day_accidents_arr.append(accident)
+            if dt_start <= accident.create_time < dt_end:
+                time_str = accident.create_time.strftime(second_format)
+                work_day_accidents[time_str] = accident
+                work_day_accidents_arr.append(accident)
     return work_day_accidents, work_day_accidents_arr
 #获得所有时间对应的数据和对应的数组中的idx
 def get_all_data_in_index(datetime_start, datetime_end,time_interval, spatial_interval):
     work_day_accidents = {}
     accidents = Accidents_Array.objects.filter(time_interval= time_interval, spatial_interval= spatial_interval, create_time__range=[ datetime_start, datetime_end]).order_by("create_time")
-
     for accident in accidents:
         time_str = accident.create_time.strftime(second_format)
         work_day_accidents[time_str] = accident
     return work_day_accidents
-#获取工作日训练数据
-#n:过去的几个小时
-#n_d:昨天当前时刻前后的n_d个小时
-#n_w:上周对应星期几的对应时间前后的n_w个小时
-def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
-    work_day_accidents, work_day_accidents_arr = get_work_day_data(work_day_bounds,time_interval, spatial_interval)
+
+#获取工作日训练数据(n:过去的几个小时,n_d:昨天当前时刻前后的n_d个小时,n_w:上周对应星期几的对应时间前后的n_w个小时
+def get_work_day_data_for_train(dt_start,dt_end,time_interval, spatial_interval, n, n_d, n_w):
+    work_day_accidents, work_day_accidents_arr = get_work_day_data(dt_start,dt_end,work_day_bounds,time_interval, spatial_interval)
 
     len_arr = len(work_day_accidents)
     print "len arr %d" % len_arr
@@ -207,11 +196,15 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
     work_day_accidents_for_train = {}
     t_time_interval = int(60 / time_interval)
     #从1月12日开始生成训练数据
-    for i in range(8 * 24 * t_time_interval, len(work_day_accidents_arr)):
+    for i in range(len(work_day_accidents_arr)):
         time_now = work_day_accidents_arr[i].create_time
+        if time_now < dt_start:
+            continue
+        if time_now >= dt_end:
+            break
         time_now_str = time_now.strftime(second_format)
         now_week_day = time_now.weekday()
-        print "workday: %s" % time_now_str
+        print "get workday: %s" % time_now_str
         work_day_accidents_for_train[time_now_str] = {}
 
         #当前时刻的事故数据
@@ -237,7 +230,6 @@ def get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w):
                 ts_str = ts.strftime(second_format)
             work_day_accidents_for_train[time_now_str][LAST_N_HOUR_KEY] = last_n_arr
             # print "len_arr: %d" % len(last_n_arr)
-        #print "Got last %d data for %s !" % (n, time_now_str)
 
         # n_d昨天相同时间前后n_d个time_interval的数据
         t_last_day_n_d_pre = time_now - datetime.timedelta(minutes= (24 * 60 + n_d * time_interval))
@@ -331,8 +323,6 @@ def generate_arrays_of_train(data_list, label_list, batch_size):
                 if (idx + 1) % batch_size == 0:
                     X_arr = np.array(X)
                     Y_arr = np.array(Y)
-                    # print "X shape:",
-                    # print X_arr.shape
 
                     yield (X_arr, Y_arr)
                     X = []
@@ -489,7 +479,7 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
     conv_dim = 9
     # data_dim = 4 + conv_dim
 
-    data_dim = 5 + conv_dim
+    data_dim =1 # 5 + conv_dim
     normalize_data = True
     #卷积操作相关
 
@@ -500,7 +490,8 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
     b = np.array([0])
     conv_param = {'stride': 1, 'pad': 1}
 
-    work_day_acc = get_work_day_data_for_train(time_interval, spatial_interval, n, n_d, n_w)
+    work_day_dt_start = datetime.datetime.strptime("2016-01-12 00:00:00", second_format)
+    work_day_acc = get_work_day_data_for_train(work_day_dt_start,dt_end,time_interval, spatial_interval, n, n_d, n_w)
     holiday_dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
     tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(holiday_dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w)
 
@@ -569,29 +560,26 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
             data_for_now = np.zeros(data_shape)
 
             for idx, data_i in enumerate(data_merge):
-                if normalize_data:
-                    extra_data = [float(data_i.time_segment)/6.0,float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0, int(data_i.is_weekend)]
-                else:
-                    extra_data = [float(data_i.time_segment)]#float(data_i.weather_severity), float(data_i.pm25), float(data_i.time_segment)]#, int(data_i.is_weekend)]
-
-
+                # if normalize_data:
+                #     extra_data = [float(data_i.time_segment)/6.0,float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0, int(data_i.is_weekend)]
+                # else:
+                #     extra_data = [float(data_i.time_segment)]#float(data_i.weather_severity), float(data_i.pm25), float(data_i.time_segment)]#, int(data_i.is_weekend)]
 
                 # data_for_now[:, idx, 0] = [it for it in range(height * width)]
                 # data_for_now[:, idx, 1] = out_conv
                 data_content = np.array([int(item) for item in data_i.content.split(",")])
-                # data_for_now[:, idx, 0] = data_content
+                data_for_now[:, idx, 0] = data_content
 
-                data_content = data_content.reshape(x_shape)
-                out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
-                # print "out_conv shape: ",
-                # print out_conv.shape
+                # data_content = data_content.reshape(x_shape)
+                # out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
+
                 # data_for_now[:, idx] = data_content
-                for w_i in range(width):
-                    for h_j in range(height):
-                        wh_id = w_i * height + h_j
-                        data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
-
-                data_for_now[:, idx, conv_dim: data_dim] = extra_data
+                # for w_i in range(width):
+                #     for h_j in range(height):
+                #         wh_id = w_i * height + h_j
+                #         data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
+                #
+                # data_for_now[:, idx, conv_dim: data_dim] = extra_data
             # data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
 
             # print "data_for_now shape: ",
@@ -647,110 +635,35 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
     print "pre total: %d, pos: %d, rate %.3f" % (total_data_cnt, cnt_positive, float(cnt_positive)/float(total_data_cnt))
     print "cnt_positive: %.3f, cnt_zero_workday: %.3f, cnt_zero_special: %.3f" % (float(cnt_positive)/float(total_data_cnt), float(cnt_zero_workday)/float(total_data_cnt), float(cnt_zero_special)/float(total_data_cnt))
 
-
-    train_data_ratio = 0.8
-
-
-    # i_size_list = [2]
-    # i_fanbei = False
-    # for i_size in i_size_list:
-    temp_positive_data_list = []
-    temp_positive_label_list = []
-    temp_postive_addition_data = []
-    temp_positive_function_list = []
-
-    temp_zero_special_data_list = []
-    temp_zero_special_label_list = []
-    temp_zero_special_addition_data = []
-    temp_zero_special_function_list=[]
-    #     #将postive 扩大i倍
-    #     # for i in [2]:
-    #     if i_fanbei:
-    #         print "%d size dataset" % i_size
-    #         for j in range(i_size):
-    #             temp_positive_data_list += positive_data_list
-    #             temp_positive_label_list += positive_label_list
-    #             temp_postive_addition_data += positive_addition_data
-    #             # temp_positive_function_list += positive_function_list
+    # temp_positive_data_list = []
+    # temp_positive_label_list = []
+    # temp_postive_addition_data = []
+    # temp_positive_function_list = []
     #
-    #         for j in range(int(i_size/2)):
-    #             temp_zero_special_data_list += zero_special_data_list
-    #             temp_zero_special_label_list += zero_special_label_list
-    #             temp_zero_special_addition_data += zero_special_addition_data
-    #             # temp_zero_special_function_list += zero_special_function_list
-    #         checkpointer = ModelCheckpoint(filepath="ckpt_pure_lstm_"+str(i_size)+".h5", verbose=1)
-    #     else:
-    temp_positive_data_list += positive_data_list
-    temp_positive_label_list += positive_label_list
-    temp_postive_addition_data += positive_addition_data
-    # temp_positive_function_list += positive_function_list
+    # temp_zero_special_data_list = []
+    # temp_zero_special_label_list = []
+    # temp_zero_special_addition_data = []
+    # temp_zero_special_function_list=[]
+    # temp_positive_data_list += positive_data_list
+    # temp_positive_label_list += positive_label_list
+    # temp_postive_addition_data += positive_addition_data
+    # # temp_positive_function_list += positive_function_list
+    #
+    # temp_zero_special_data_list += zero_special_data_list
+    # temp_zero_special_label_list += zero_special_label_list
+    # temp_zero_special_addition_data += zero_special_addition_data
+    # # temp_zero_special_function_list += zero_special_function_list
+    # tot_positive_len = len(temp_positive_label_list)
+    # tot_special_len = int(len(temp_zero_special_label_list) / 4)
+    # tot_zero_workday_len = tot_positive_len - tot_special_len
+    #
+    # sub_total = tot_positive_len + tot_special_len + tot_zero_workday_len
+    # print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_positive_len, float(tot_positive_len)/float(sub_total))
 
-    temp_zero_special_data_list += zero_special_data_list
-    temp_zero_special_label_list += zero_special_label_list
-    temp_zero_special_addition_data += zero_special_addition_data
-    # temp_zero_special_function_list += zero_special_function_list
-    tot_positive_len = len(temp_positive_label_list)
-    tot_special_len = int(len(temp_zero_special_label_list) / 4)
-    tot_zero_workday_len = tot_positive_len - tot_special_len
-
-    # zero_special_train_len = int(tot_special_len * train_data_ratio)
-    # positive_label_train_len = int(tot_workday_len * train_data_ratio)
-    # zero_workday_train_len = int(tot_workday_len * train_data_ratio)
-
-    sub_total = tot_positive_len + tot_special_len + tot_zero_workday_len
-    print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_positive_len, float(tot_positive_len)/float(sub_total))
-
-    # addition_data = False
-    # if addition_data:
-    #     pass
-    #     addition_data_dim = 3
-    #     all_train_data_list, all_train_label_list, all_train_addition_data = get_array_of_seq_of_function(temp_zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len], zero_workday_data_list[0:zero_workday_train_len], temp_zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len], zero_workday_label_list[0:zero_workday_train_len], temp_zero_special_addition_data[0:zero_special_train_len], temp_postive_addition_data[0:positive_label_train_len], zero_workday_addition_data[0:zero_workday_train_len])
-    #     print "finish trainset ass"
-    #
-    #     all_val_data_list, all_val_label_list, all_val_addition_data = get_array_of_seq_of_function(temp_zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len], temp_zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len], temp_zero_special_addition_data[zero_special_train_len: tot_special_len], temp_postive_addition_data[positive_label_train_len:tot_workday_len], zero_workday_addition_data[zero_workday_train_len:tot_workday_len])
-    #     print "finish val ass"
-    #
-    #     print "start modeling"
-    #
-    #     add_input = Input(shape=(addition_data_dim, ), name='add_input')
-    #     concat_layer = keras.layers.concatenate([lstm2, add_input])
-    #     # We stack a deep densely-connected network on top
-    #     x = Dense(32, activation='relu')(concat_layer)
-    #     x = Dropout(0.4)(x)
-    #     # x = Dense(64, activation='relu')(x)
-    #     # x = Dropout(0.4)(x)
-    #     # And finally we add the main logistic regression layer
-    #     main_output = Dense(3 , activation='sigmoid', name='main_output')(x)
-    #
-    #     model = Model(inputs=[input_sequences, add_input], outputs=[main_output])
-    #     model.compile(loss='binary_crossentropy', #loss :rmse?
-    #                   optimizer='rmsprop',# optimizer: adam?
-    #                   metrics=['accuracy'])
-    #     epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size)))
-    #
-    #     validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
-    #     print "epochs %d" % epochs
-    #
-    #     print "start fitting model"
-    #
-    #     model.fit_generator(generate_function_arrays_of_train(all_train_data_list, all_train_label_list, all_train_addition_data, batch_size),
-    #     steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_function_arrays_of_validation(all_val_data_list, all_val_label_list, all_val_addition_data, batch_size), validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate])
-    #
-    # else:
-
-    # all_train_data_list, all_train_label_list = get_array_of_seq(temp_zero_special_data_list[0:zero_special_train_len], temp_positive_data_list[0:positive_label_train_len], zero_workday_data_list[0:zero_workday_train_len], temp_zero_special_label_list[0:zero_special_train_len], temp_positive_label_list[0:positive_label_train_len], zero_workday_label_list[0:zero_workday_train_len])
-    # print "finish trainset ass"
-
-    # all_val_data_list, all_val_label_list = get_array_of_seq(temp_zero_special_data_list[zero_special_train_len: tot_special_len], temp_positive_data_list[positive_label_train_len: tot_workday_len], zero_workday_data_list[zero_workday_train_len:tot_workday_len], temp_zero_special_label_list[zero_special_train_len: tot_special_len], temp_positive_label_list[positive_label_train_len:tot_workday_len], zero_workday_label_list[zero_workday_train_len:tot_workday_len])
-    # print "finish val ass"
-
-    all_data_list, all_label_list = get_array_of_seq(temp_zero_special_data_list[0: tot_special_len], temp_positive_data_list[0: tot_positive_len], zero_workday_data_list[0:tot_zero_workday_len], temp_zero_special_label_list[0: tot_special_len], temp_positive_label_list[0:tot_positive_len], zero_workday_label_list[0:tot_zero_workday_len])
+    # all_data_list, all_label_list = get_array_of_seq(temp_zero_special_data_list[0: tot_special_len], temp_positive_data_list[0: tot_positive_len], zero_workday_data_list[0:tot_zero_workday_len], temp_zero_special_label_list[0: tot_special_len], temp_positive_label_list[0:tot_positive_len], zero_workday_label_list[0:tot_zero_workday_len])
+    all_data_list, all_label_list = get_array_of_seq(zero_special_data_list, positive_data_list, zero_workday_data_list, zero_special_label_list, positive_label_list, zero_workday_label_list)
     print "finish get all data"
-
     return [all_data_list,all_label_list]
-
-def get_data_for_train_and_val(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
-    return generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params)
 
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w):
