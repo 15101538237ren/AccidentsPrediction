@@ -24,7 +24,7 @@ def import_data_to_db():
     import_air_quality_to_db(air_file)
 def index(request):
 
-    # outpkl_file_path = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/accidents.pkl'
+    outpkl_file_path = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/accidents.pkl'
     #partition_geopoints_by_time(outpkl_file_path)
     #get_all_accidents_from_db(outpkl_file_path)
     keywords = [u"交通设施", u"住宿", u"医院", u"商务住宅_公司", u"商场超市", u"娱乐场所", u"学校", u"旅游景点", u"生活服务", u"自住住宅", u"银行金融", u"餐饮"]
@@ -43,17 +43,19 @@ def index(request):
     param_500['d_len'] = 500
     param_500['d_lat'] = 0.0042
     param_500['d_lng'] = 0.006
-    param_500['n_lng'] = 56
-    param_500['n_lat'] = 62
+    param_500['n_lng'] = 58
+    param_500['n_lat'] = 64
 
     param_1000 = {}
     param_1000['d_len'] = 1000
     param_1000['d_lat'] = 0.0084
     param_1000['d_lng'] = 0.012
-    param_1000['n_lng'] = 28
-    param_1000['n_lat'] = 31
+    param_1000['n_lng'] = 29
+    param_1000['n_lat'] = 32
+    # label_all_accidents(outpkl_file_path, 60, **param_1000)
     # label_all_function_regions(input_file_list,**param_1000)
-    #label_all_accidents(outpkl_file_path, 20, **param_1000)
+    #return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
+
     #get_work_day_data(work_day_bounds,time_interval=60, spatial_interval=1000)
     # get_holiday_and_tiaoxiu_data_for_train(time_interval=30, spatial_interval=1000, n = 5, n_d = 3, n_w = 4)
     dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
@@ -104,6 +106,30 @@ def grid(request):
     sep = 1000
     min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file, sep= sep)
     return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
+#按照网格,用不同颜色显示每个网格的事故量,并用label标出事故量
+def grid_timeline(request):
+    time_interval = 60
+    sep = 1000
+    if request.method == 'GET':
+        start_time = datetime.datetime.strptime("2016-01-01 00:00:00",second_format)
+        end_time = datetime.datetime.strptime("2017-03-01 00:00:00",second_format)
+        dt_list = get_all_dt_in_call_incidences_db(start_time,end_time,time_interval=time_interval)
+        dt_start = start_time.strftime(second_format)
+        slider_cnts = len(dt_list)
+        return render_to_response('prep/grid_timeline.html', locals(), context_instance=RequestContext(request))
+    else:
+        datetime_query = request.POST.get("query_dt","2016-01-01 00:00:00")
+        from_dt = datetime.datetime.strptime(datetime_query,second_format)
+        end_dt = from_dt + datetime.timedelta(minutes=time_interval)
+
+        out_data_file = '/Users/Ren/PycharmProjects/AccidentsPrediction/static/js/grid_timeline.js'
+
+        min_lat,max_lat,min_lng,max_lng = get_grid_timeline(datetime_query,out_data_file, sep= sep,time_interval = 60)
+        addr = '/static/js/grid_timeline.js'
+        response_dict = {}
+        response_dict["code"] = 0
+        response_dict["addr"] = addr
+        return JsonResponse(response_dict)
 def timeline(request):
     start_time = datetime.datetime.strptime("2016-01-01 00:00:00",second_format)
     end_time = datetime.datetime.strptime("2017-03-01 00:00:00",second_format)

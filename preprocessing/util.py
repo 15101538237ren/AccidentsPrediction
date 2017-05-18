@@ -15,9 +15,9 @@ sys.setdefaultencoding('utf8')
 
 ## 五环
 min_lat = 39.764427
-max_lat = 40.028983
+max_lat = 40.033227#40.028983
 min_lng = 116.214834
-max_lng = 116.554975
+max_lng = 116.562834#116.554975
 x_pi = math.pi * 3000.0 / 180.0
 
 DAWN = 0
@@ -935,15 +935,15 @@ def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
                         map.addOverlay(rectangle_'''+str(cnt)+''');\n'''
             output_file.write(out_str)
     output_file.close()
-def generate_polylines_for_beijing(lng_coors, lat_coors,output_file_path):#,min_lat,max_lat,min_lng,max_lng):
+def generate_polylines_for_beijing(lng_coors, lat_coors,output_file_path,min_lat1,max_lat1,min_lng1,max_lng1):
     output_file = open(output_file_path,"w")
     cnt = 0
     for i_lng in range(len(lng_coors)):
         now_lng = lng_coors[i_lng]
         cnt += 1
         out_str ='''var polyline_'''+str(cnt)+''' = new BMap.Polyline([
-                        new BMap.Point(''' + str(now_lng) + ''', ''' + str(min_lat) + '''),
-                        new BMap.Point(''' + str(now_lng) + ''', ''' + str(max_lat) + ''')
+                        new BMap.Point(''' + str(now_lng) + ''', ''' + str(min_lat1) + '''),
+                        new BMap.Point(''' + str(now_lng) + ''', ''' + str(max_lat1) + ''')
                     ], {strokeColor:"red", strokeWeight:1, strokeOpacity:1,fillColor:''});  \n
                     map.addOverlay(polyline_'''+str(cnt)+''');\n'''
         output_file.write(out_str)
@@ -951,13 +951,57 @@ def generate_polylines_for_beijing(lng_coors, lat_coors,output_file_path):#,min_
         now_lat = lat_coors[i_lat]
         cnt += 1
         out_str ='''var polyline_'''+str(cnt)+''' = new BMap.Polyline([
-                        new BMap.Point(''' + str(min_lng) + ''', ''' + str(now_lat) + '''),
-                        new BMap.Point(''' + str(max_lng) + ''', ''' + str(now_lat) + ''')
+                        new BMap.Point(''' + str(min_lng1) + ''', ''' + str(now_lat) + '''),
+                        new BMap.Point(''' + str(max_lng1) + ''', ''' + str(now_lat) + ''')
                     ], {strokeColor:"red", strokeWeight:1, strokeOpacity:1,fillColor:''});  \n
                     map.addOverlay(polyline_'''+str(cnt)+''');\n'''
         output_file.write(out_str)
 
     output_file.close()
+def generate_grid_timelines_for_beijing(datetime_query,lng_coors,lat_coors,out_data_file,sep,time_interval):
+    query_of_accidents = Accidents_Array.objects.filter(spatial_interval=sep,time_interval=time_interval,create_time=datetime_query)
+    if len(query_of_accidents):
+        accidents_arr = [int(item) for item in query_of_accidents[0].content.split(",")]
+
+        output_file = open(out_data_file,"w")
+        n_lat = len(lat_coors)-1
+        n_lng = len(lng_coors)-1
+
+        for i_lng in range(n_lng):
+            for j_lat in range(n_lat):
+                id = i_lng * n_lat + j_lat
+                min_lng1 = lng_coors[i_lng]
+                max_lng1 = lng_coors[i_lng + 1]
+                min_lat1 = lat_coors[j_lat]
+                max_lat1 = lat_coors[j_lat + 1]
+                # center_lng = (min_lng1 + max_lng1)/2.0
+                # center_lat = (min_lat1 + max_lat1)/2.0
+                accident_cnt_of_id = accidents_arr[id]
+
+                if accident_cnt_of_id == 0:
+                    color = 'white'
+                elif accident_cnt_of_id == 1:
+                    color = 'orange'
+                else:
+                    color = 'red'
+                out_str ='''var rectangle_'''+str(id)+''' = new BMap.Polygon([
+                                new BMap.Point(''' + str(min_lng1) + ''',''' + str(min_lat1) + '''),
+                                new BMap.Point(''' + str(max_lng1) + ''',''' + str(min_lat1) + '''),
+                                new BMap.Point(''' + str(max_lng1) + ''',''' + str(max_lat1) + '''),
+                                new BMap.Point(''' + str(min_lng1) + ''',''' + str(max_lat1) + ''')
+                            ], {strokeColor:"red", strokeWeight:1, strokeOpacity:1,fillColor:"'''+color+'''",fillOpacity:0.5});\n
+                            map.addOverlay(rectangle_'''+str(id)+''');\n'''
+                            # var point_'''+str(id)+''' = new BMap.Point(''' + str(center_lng) + ''',''' + str(center_lat) + ''');\n
+                            # var marker_'''+str(id)+''' = new BMap.Marker(point_'''+str(id)+''');\n
+                            # var label_'''+str(id)+''' = new BMap.Label("'''+str(accident_cnt_of_id)+'''", {position: point_'''+str(id)+''',offset: new BMap.Size(20, -10)});\n
+                            # label_'''+str(id)+'''.setStyle({color: "black",fontSize: "12px",border: "0",backgroundColor: "0.0"});\n
+                            # marker_'''+str(id)+'''.setLabel(label_'''+str(id)+''');\n
+                            # map.addOverlay(marker_'''+str(id)+''');'''
+                output_file.write(out_str)
+        output_file.close()
+        return 0
+    else:
+        return -1
 def partition_geopoints_by_time(input_pickle_path,interval = 60):
     path_pkl_file = open(input_pickle_path,"rb")
     print "start load!"
@@ -1041,8 +1085,11 @@ def label_all_function_regions(input_region_files,**params):
             if (not (min_lng <= lng and lng <= max_lng and min_lat <= lat and lat <= max_lat)):
                 continue
             else:
-                j_lat = int(math.ceil((float(lat) - min_lat)/d_lat)) - 2
-                i_lng = int(math.ceil((float(lng) - min_lng)/d_lng)) - 2
+
+                j_lat_origin = (float(lat) - min_lat)/d_lat
+                j_lat = int(math.ceil(j_lat_origin)) - 1
+                i_lng_origin = (float(lng) - min_lng)/d_lng
+                i_lng = int(math.ceil(i_lng_origin)) - 1
 
                 id = i_lng * n_lat + j_lat
                 geo_cnts[idx][id] += 1
@@ -1075,6 +1122,7 @@ def generate_grid_ids(lng_coors, lat_coors):
 
     return grids
 def label_geo_points(geo_points, d_lat, d_lng, n_lng, n_lat):
+    #n_lat和n_lng为纬度和经度网格的数量
     geo_cnts = [0 for i in range(n_lat * n_lng)]
     for geo_point in geo_points:
         lng = geo_point[0]
@@ -1083,9 +1131,10 @@ def label_geo_points(geo_points, d_lat, d_lng, n_lng, n_lat):
         if (not (min_lng <= lng and lng <= max_lng and min_lat <= lat and lat <= max_lat)):
             continue
         else:
-            j_lat = int(math.ceil((float(lat) - min_lat)/d_lat)) - 2
-            i_lng = int(math.ceil((float(lng) - min_lng)/d_lng)) - 2
-
+            j_lat_origin = (float(lat) - min_lat)/d_lat
+            j_lat = int(math.ceil(j_lat_origin)) - 1
+            i_lng_origin = (float(lng) - min_lng)/d_lng
+            i_lng = int(math.ceil(i_lng_origin)) - 1
             id = i_lng * n_lat + j_lat
             geo_cnts[id] += 1
     return geo_cnts
@@ -1213,6 +1262,28 @@ def get_pois_from_baidu(keyword, industry_type, output_file_path):
     total = int(ret['total'])
     print len(ret['results'])
 
+
+def get_grid_timeline(datetime_query,out_data_file, sep= 1000,time_interval = 60):
+    if sep == 500:
+        d_lat = 0.0042
+        d_lng = 0.006
+    else:
+        d_lat = 0.0084
+        d_lng = 0.012
+    n_lat_delta_origin = (max_lat - min_lat)/d_lat
+    n_lat_delta = int(math.ceil(n_lat_delta_origin)) + 1
+    n_lng_delta_origin = (max_lng - min_lng)/d_lng + 1
+    n_lng_delta = int(math.ceil(n_lng_delta_origin))
+
+    lng_coors = [min_lng + i * d_lng for i in range(n_lng_delta)]
+    lat_coors = [min_lat + i * d_lat for i in range(n_lat_delta)]
+    n_lng = len(lng_coors)-1
+    n_lat = len(lat_coors)-1
+    print "grid size = lng: %d * lat: %d\n" % (n_lng, n_lat)
+
+    generate_grid_timelines_for_beijing(datetime_query,lng_coors,lat_coors,out_data_file,sep,time_interval)#,min_lat,max_lat,min_lng,max_lng)
+    print 'min_lat: %f, max_lat: %f, min_lng: %f , max_lng: %f\n' % (min_lat, max_lat, min_lng, max_lng)
+    return min_lat,max_lat,min_lng,max_lng
 def get_liuhuan_poi(output_file_path, sep = 500):
     # keyword = '六环'
     # url = 'http://api.map.baidu.com/place/v2/search?'
@@ -1259,17 +1330,20 @@ def get_liuhuan_poi(output_file_path, sep = 500):
     else:
         d_lat = 0.0084
         d_lng = 0.012
-
-    n_lat_delta = int(math.ceil((max_lat - min_lat)/d_lat))
-    n_lng_delta = int(math.ceil((max_lng - min_lng)/d_lng))
+    n_lat_delta_origin = (max_lat - min_lat)/d_lat
+    n_lat_delta = int(math.ceil(n_lat_delta_origin)) + 1
+    n_lng_delta_origin = (max_lng - min_lng)/d_lng + 1
+    n_lng_delta = int(math.ceil(n_lng_delta_origin))
 
     lng_coors = [min_lng + i * d_lng for i in range(n_lng_delta)]
     lat_coors = [min_lat + i * d_lat for i in range(n_lat_delta)]
-    print "grid size = lng: %d * lat: %d\n" % (len(lng_coors)-1, len(lat_coors)-1)
+    n_lng = len(lng_coors)-1
+    n_lat = len(lat_coors)-1
+    print "grid size = lng: %d * lat: %d\n" % (n_lng, n_lat)
     generate_grid_ids(lng_coors,lat_coors)
     #generate_grid_for_beijing(lng_coors, lat_coors,output_file_path)
-    generate_polylines_for_beijing(lng_coors,lat_coors,output_file_path)#,min_lat,max_lat,min_lng,max_lng)
-    print 'min_lat: %f, max_lat: %f, min_lng: %f , max_lng: %f\n' % (min_lat, max_lat, min_lng, max_lng)
+    generate_polylines_for_beijing(lng_coors,lat_coors,output_file_path,min_lat,lat_coors[n_lat],min_lng,lng_coors[n_lng])
+    print 'min_lat: %f, max_lat: %f, min_lng: %f , max_lng: %f\n' % (min_lat, lat_coors[n_lat], min_lng, lng_coors[n_lng])
     return min_lat,max_lat,min_lng,max_lng
 
 def get_all_dt_in_call_incidences_db(start_time,end_time,time_interval=60):
