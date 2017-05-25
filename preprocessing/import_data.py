@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import xlrd,sys,os,datetime,pytz,pickle,csv,calendar,json
+import xlrd,sys,os,datetime,math,csv,urllib2,json
 from models import *
 from preprocessing.baidumap import BaiduMap
 reload(sys)
@@ -18,6 +18,52 @@ def get_excel_index():
     excel_dict = {ch:i for i,ch in enumerate(excel_index_list)}
     #print(excel_dict)
 
+def query_baidu_address(lng,lat):
+
+    query_url = 'http://api.map.baidu.com/geocoder/v2/?location='+str(lat) + ',' + str(lng)+'&output=json&pois=0&ak=rBHgzWXGwp7M0w0E8MSUUzrr'
+    req = urllib2.Request(query_url)
+    res = urllib2.urlopen(req).read()
+    result = json.loads(res.decode("utf-8"))
+    if result["status"] == 0:
+        address = result["result"]["sematic_description"]
+    else:
+        address = u"未知"
+    print address
+    return address
+def clear_122_lng_lat_invalid_data():
+    call_incidences = Call_Incidence.objects.filter(id__range=[975861, 1019380])#Call_Incidence.objects.all()
+    print "got all call_incidences"
+    cnt = 0
+    for call_incidence in call_incidences:
+        if math.fabs(call_incidence.latitude) < 1e-6 or math.fabs(call_incidence.longitude) < 1e-6:
+            cnt += 1
+            call_incidence.delete()
+            call_incidence.save()
+    print "deleted %d call_incidences" % cnt
+def import_app_incidences_from_json(input_file_path):
+    input_file = open(input_file_path,"r")
+    input_str = input_file.read().decode("utf-8")
+    json_obj = json.loads(input_str)
+    for item in json_obj:
+        lng = item[0]
+        lat = item[1]
+        create_time = item[3]
+        try:
+            if not isinstance(lng, unicode) or not isinstance(lat,unicode) \
+                    or not isinstance(create_time,unicode):
+                continue
+            lng = float(lng)
+            lat = float(lat)
+            create_time = datetime.datetime.strptime(create_time,"%Y-%m-%d %H:%M:%S")
+            address = query_baidu_address(lng,lat)
+            call_incidences = Call_Incidence(create_time=create_time, latitude=lat, longitude=lng, place=address)
+            call_incidences.save()
+        except Exception,e:
+            print "decode failed"
+            continue
+
+    print len(json_obj)
+    input_file.close()
 #导入122电话事故举报数据
 def import_call_incidence_data_of_2016(input_call_incidence_file):
     get_excel_index()

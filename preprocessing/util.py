@@ -471,7 +471,6 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
     width = params["n_lng"]
     #纬度网格数量
     height = params["n_lat"]
-
     #空间间隔长度
     spatial_interval = params["d_len"]
 
@@ -555,8 +554,8 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
             data_merge = data_merge + data_last_hours
 
             len_data_merge = len(data_merge)
-            # data_shape = (height * width, len_data_merge)
-            data_shape = (height * width, len_data_merge, data_dim)
+            data_shape = (height * width, len_data_merge)
+            # data_shape = (height * width, len_data_merge, data_dim)
             data_for_now = np.zeros(data_shape)
 
             for idx, data_i in enumerate(data_merge):
@@ -568,17 +567,17 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
                 # data_for_now[:, idx, 0] = [it for it in range(height * width)]
                 # data_for_now[:, idx, 1] = out_conv
                 data_content = np.array([int(item) for item in data_i.content.split(",")])
-                data_for_now[:, idx, 0] = data_content
+                # data_for_now[:, idx, 0] = data_content
 
                 # data_content = data_content.reshape(x_shape)
-                # out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
+                out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
 
                 # data_for_now[:, idx] = data_content
                 # for w_i in range(width):
                 #     for h_j in range(height):
                 #         wh_id = w_i * height + h_j
                 #         data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
-                #
+
                 # data_for_now[:, idx, conv_dim: data_dim] = extra_data
             # data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
 
@@ -608,20 +607,20 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
                 addition_data = [i_t, data_labels.weather_severity, data_labels.pm25]
                 if data_arr[i_t] == 0:#data_arr[i_t] == [1, 0, 0]:
                     if special == 1:
-                        zero_special_data_list.append(data_for_now[i_t, :, :])
-                        # zero_special_data_list.append(data_for_now[i_t, :])
+                        # zero_special_data_list.append(data_for_now[i_t, :, :])
+                        zero_special_data_list.append(data_for_now[i_t, :])
                         zero_special_label_list.append(data_arr[i_t])
                         zero_special_addition_data.append(addition_data)
                         # zero_special_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
                     else:
-                        zero_workday_data_list.append(data_for_now[i_t, :, :])
-                        # zero_workday_data_list.append(data_for_now[i_t, :])
+                        # zero_workday_data_list.append(data_for_now[i_t, :, :])
+                        zero_workday_data_list.append(data_for_now[i_t, :])
                         zero_workday_label_list.append(data_arr[i_t])
                         zero_workday_addition_data.append(addition_data)
                         # zero_workday_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
                 else:
-                    positive_data_list.append(data_for_now[i_t, :, :])
-                    # positive_data_list.append(data_for_now[i_t, :])
+                    # positive_data_list.append(data_for_now[i_t, :, :])
+                    positive_data_list.append(data_for_now[i_t, :])
                     positive_label_list.append(data_arr[i_t])
                     positive_addition_data.append(addition_data)
                     # positive_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
@@ -680,9 +679,12 @@ def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spati
         dt_tx_st = datetime.datetime.strptime(date_tx + " 00:00:00",second_format)
         dt_tx_ed = datetime.datetime.strptime(date_tx + " 23:59:59",second_format)
         while dt_tx_st < dt_tx_ed:
-            tx_dt_list.append(dt_tx_st)
-            tx_list_idx[dt_tx_st.strftime(second_format)] = t_i
-            dt_tx_st += datetime.timedelta(minutes=time_interval)
+            if dt_start <= dt_tx_st < dt_end:
+                tx_dt_list.append(dt_tx_st)
+                tx_list_idx[dt_tx_st.strftime(second_format)] = t_i
+                dt_tx_st += datetime.timedelta(minutes=time_interval)
+            elif dt_tx_st >= dt_end:
+                break
     for dt_tiaoxiu in tx_dt_list:
         time_now = dt_tiaoxiu
         time_now_str = time_now.strftime(second_format)
@@ -753,10 +755,15 @@ def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spati
                 date_hl = h_list[j_h][k_h]
                 dt_list = []
                 dt_hl_st = datetime.datetime.strptime(date_hl + " 00:00:00", second_format)
+                if dt_hl_st >= dt_end:
+                    break
                 dt_hl_ed = datetime.datetime.strptime(date_hl + " 23:59:59", second_format)
                 while dt_hl_st < dt_hl_ed:
-                    dt_list.append(dt_hl_st)
-                    dt_hl_st += datetime.timedelta(minutes=time_interval)
+                    if dt_start <= dt_hl_st < dt_end:
+                        dt_list.append(dt_hl_st)
+                        dt_hl_st += datetime.timedelta(minutes=time_interval)
+                    elif dt_hl_st >= dt_end:
+                        break
                 for dt_now in dt_list:
                     time_now_str = dt_now.strftime(second_format)
                     print "holiday: %s" % time_now_str

@@ -16,11 +16,13 @@ from util import generate_arrays_of_validation,generate_arrays_of_train
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import LinearSVC,NuSVC
 from sklearn.decomposition import PCA
+from imblearn.under_sampling import RandomUnderSampler
+from collections import Counter
 reload(sys)
 sys.setdefaultencoding('utf8')
 
 #Dense Network
-def train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list, all_label_list,split_ratio=0.8):
+def train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list, all_label_list,split_ratio=0.8,class_weight={0:1,1:1}):
     tot_len = len(all_label_list)
     val_n = int(tot_len * (1.0 - split_ratio))
 
@@ -34,7 +36,6 @@ def train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list
     early_stoping = EarlyStopping(monitor='val_loss',patience=10)
     checkpointer = ModelCheckpoint(filepath="ckpt_1_layer_dense_network.h5", verbose=1)
 
-    data_dim = 4
     batch_size = 256
     steps_per_epoch = 10000
     epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size))) * 3
@@ -52,11 +53,11 @@ def train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list
     print "start Training 1 Layer Dense Network model"
     model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
     steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size),
-    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping])#, initial_epoch=28)
+    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[checkpointer, lrate,early_stoping])#, initial_epoch=28)
     return 0
 
 #2 Layer Dense Network
-def train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps, all_data_list, all_label_list,split_ratio=0.8):
+def train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps, all_data_list, all_label_list,split_ratio=0.8,class_weight={0:1,1:1}):
     tot_len = len(all_label_list)
     val_n = int(tot_len * (1.0 - split_ratio))
 
@@ -88,18 +89,26 @@ def train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps, all_d
     print "start Training 2 Layer Dense Network model"
     model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
     steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size),
-    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping])#, initial_epoch=28)
+    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[checkpointer, lrate,early_stoping])#, initial_epoch=28)
     return 0
 
 #LSTM
-def train_and_test_model_with_lstm(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.8):
+def train_and_test_model_with_lstm(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.8,class_weight={0:1,1:1}):
     tot_len = len(all_label_list)
     val_n = int(tot_len * (1.0 - split_ratio))
 
-    all_val_label_list = all_label_list[0:val_n]
+    print('Original dataset shape {}'.format(Counter(all_label_list)))
+    rus = RandomUnderSampler(random_state=42)
+    X_res, y_res = rus.fit_sample(all_data_list, all_label_list)
+    print('Resampled dataset shape {}'.format(Counter(y_res)))
+    int_ratio = int(0.4 * len(y_res))
+    x_test,y_test = X_res[0:int_ratio],y_res[0:int_ratio]
+
+
+    all_val_label_list = y_test#all_label_list[0:val_n]
     all_train_label_list = all_label_list[val_n:-1]
 
-    all_val_data_list = all_data_list[0:val_n]
+    all_val_data_list = x_test#all_data_list[0:val_n]
     all_train_data_list = all_data_list[val_n:-1]
 
     lrate = ReduceLROnPlateau(min_lr=0.00001)
@@ -107,13 +116,13 @@ def train_and_test_model_with_lstm(data_dim,n_time_steps,all_data_list, all_labe
     checkpointer = ModelCheckpoint(filepath="ckpt_1_layer_lstm.h5", verbose=1)
 
     lstm_dim = n_time_steps
-    batch_size = 128
-    steps_per_epoch = 500
+    batch_size = 256
+    steps_per_epoch = 10000
     epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size))) * 2
     validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
     print "epochs %d" % epochs
 
-    input_seq = Input(shape=(n_time_steps,data_dim))
+    input_seq = Input(shape=(n_time_steps*data_dim,))#shape=(n_time_steps,data_dim))
     lstm1 = LSTM(lstm_dim)(input_seq)
     out = Dense(1,activation='sigmoid')(lstm1)
 
@@ -123,11 +132,11 @@ def train_and_test_model_with_lstm(data_dim,n_time_steps,all_data_list, all_labe
     print "start Training LSTM model"
     model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
     steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size),
-    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate,early_stoping])#, initial_epoch=28)
+    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[checkpointer, lrate,early_stoping])#, initial_epoch=28)
     return 0
 
 #GRU
-def train_and_test_model_with_gru(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.8):
+def train_and_test_model_with_gru(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.8,class_weight={0:1,1:1}):
     tot_len = len(all_label_list)
     val_n = int(tot_len * (1.0 - split_ratio))
 
@@ -142,8 +151,8 @@ def train_and_test_model_with_gru(data_dim,n_time_steps,all_data_list, all_label
     checkpointer = ModelCheckpoint(filepath="ckpt_1_layer_lstm.h5", verbose=1)
 
     gru_dim = n_time_steps
-    batch_size = 128
-    steps_per_epoch = 500
+    batch_size = 256
+    steps_per_epoch = 10000
     epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size))) * 2
     validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
     print "epochs %d" % epochs
@@ -160,26 +169,39 @@ def train_and_test_model_with_gru(data_dim,n_time_steps,all_data_list, all_label
     print "start Training GRU model"
     model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
     steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size),
-    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1, callbacks=[checkpointer, lrate])#, initial_epoch=28)
+    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[checkpointer, lrate])#, initial_epoch=28)
     return 0
 
 #keras_logistic_regression
-def train_and_test_model_with_keras_logistic_regression(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.8):
+def train_and_test_model_with_keras_logistic_regression(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.8,class_weight={0:1,1:1}):
     tot_len = len(all_label_list)
     val_n = int(tot_len * (1.0 - split_ratio))
 
-    all_val_label_list = all_label_list[0:val_n]
+    rus = RandomUnderSampler(random_state=42)
+    X_res, y_res = rus.fit_sample(all_data_list, all_label_list)
+    print('Resampled dataset shape {}'.format(Counter(y_res)))
+    int_ratio = int(0.4 * len(y_res))
+    x_test,y_test = X_res[0:int_ratio],y_res[0:int_ratio]
+
+
+    all_val_label_list = y_test#all_label_list[0:val_n]
     all_train_label_list = all_label_list[val_n:-1]
 
-    all_val_data_list = all_data_list[0:val_n]
+    all_val_data_list = x_test#all_data_list[0:val_n]
     all_train_data_list = all_data_list[val_n:-1]
+
+    # all_val_label_list = all_label_list[0:val_n]
+    # all_train_label_list = all_label_list[val_n:-1]
+    #
+    # all_val_data_list = all_data_list[0:val_n]
+    # all_train_data_list = all_data_list[val_n:-1]
 
     lrate = ReduceLROnPlateau(min_lr=0.00001)
     early_stoping = EarlyStopping(monitor='val_loss',patience=10)
     checkpointer = ModelCheckpoint(filepath="ckpt_logistic_regression.h5", verbose=1)
 
-    batch_size = 128
-    steps_per_epoch = 1000
+    batch_size = 256
+    steps_per_epoch = 10000
     epochs = int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size))) * 2
     validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
     print "epochs %d" % epochs
@@ -193,7 +215,7 @@ def train_and_test_model_with_keras_logistic_regression(data_dim,n_time_steps,al
     print "start Training Keras Logistic Regression model"
     model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
     steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size),
-    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight={0: 1, 1: 19}, callbacks=[checkpointer, lrate,early_stoping, TensorBoard(log_dir='/tmp/lr')])#, initial_epoch=28)
+    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[checkpointer, lrate,early_stoping, TensorBoard(log_dir='/tmp/lr')])#, initial_epoch=28)
     return 0
 
 #DAE
@@ -240,7 +262,7 @@ def train_and_test_model_with_dae(data_dim,n_time_steps,all_data_list, all_label
     return 0
 
 #logistic_regression
-def train_and_test_model_with_logistic_regression(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7):
+def train_and_test_model_with_logistic_regression(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7,class_weight={0:1,1:1}):
     # tuned_parameters = {'C': [1,10,100,1000]}
 
     #grid_search =GridSearchCV(LogisticRegression(penalty='l2',solver='sag', tol=1e-4,class_weight='balanced', n_jobs=-1), param_grid=tuned_parameters, cv=5, scoring='f1')#['accuracy','precision','recall','f1'])
@@ -263,7 +285,7 @@ def train_and_test_model_with_logistic_regression(data_dim,n_time_steps,all_data
     # for param_name in sorted(tuned_parameters.keys()):
     #     print("\t%s: %r" % (param_name, best_parameters[param_name]))
     print "start Training Traditional Logistic Regression model"
-    log_reg = LogisticRegression(C=10.0, penalty='l2',solver='sag', tol=1e-4,class_weight='balanced', n_jobs=-1)
+    log_reg = LogisticRegression(C=10.0, penalty='l2',solver='sag', tol=1e-4,class_weight=class_weight, n_jobs=-1)
     acc_scores = cross_val_score(log_reg,all_data_list, all_label_list, cv= 5, scoring='accuracy')
     print "acc_scores:",
     print acc_scores
@@ -287,7 +309,7 @@ def train_and_test_model_with_logistic_regression(data_dim,n_time_steps,all_data
     print "mean of accuracy: %.6f, precision:%.6f, recall:%.6f, f1:%.6f, roc_auc:%.6f" % (acc_scores.mean(), precision.mean(), recall.mean(), f1.mean(), roc_auc.mean())
 
 #LDA
-def train_and_test_model_with_lda(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7):
+def train_and_test_model_with_lda(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7,class_weight={0:1,1:1}):
     # tuned_parameters = {'shrinkage': [0.0, 0.3, 0.6, 1.0], 'solver':['lsqr','eigen']}
     # grid_search =GridSearchCV(LinearDiscriminantAnalysis(tol=1e-4), param_grid=tuned_parameters, cv=5, scoring='accuracy')
     #
@@ -459,7 +481,7 @@ def train_and_test_model_with_bagging(data_dim,n_time_steps,all_data_list, all_l
     print "mean of accuracy: %.6f, precision:%.6f, recall:%.6f, f1:%.6f, roc_auc:%.6f" % (acc_scores.mean(), precision.mean(), recall.mean(), f1.mean(), roc_auc.mean())
 
 #RandomForest
-def train_and_test_model_with_random_forest(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7):
+def train_and_test_model_with_random_forest(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7,class_weight={0:1,1:1}):
     # tuned_parameters = {'n_estimators':[50,100]}
     #
     # grid_search =GridSearchCV(RandomForestClassifier(n_jobs=-1,criterion='entropy'), param_grid=tuned_parameters, cv=5, scoring='accuracy')
@@ -484,7 +506,7 @@ def train_and_test_model_with_random_forest(data_dim,n_time_steps,all_data_list,
     #     print("\t%s: %r" % (param_name, best_parameters[param_name]))
 
     print "RandomForestClassifier"
-    rfc = RandomForestClassifier(n_jobs=-1,criterion='entropy',n_estimators=100)
+    rfc = RandomForestClassifier(n_jobs=-1,criterion='entropy',n_estimators=100,class_weight=class_weight)
 
     acc_scores = cross_val_score(rfc,all_data_list, all_label_list, cv= 5, scoring='accuracy')
     print "acc_scores:",
@@ -558,7 +580,7 @@ def train_and_test_model_with_gradient_boosting(data_dim,n_time_steps,all_data_l
     print "mean of accuracy: %.6f, precision:%.6f, recall:%.6f, f1:%.6f, roc_auc:%.6f" % (acc_scores.mean(), precision.mean(), recall.mean(), f1.mean(), roc_auc.mean())
 
 #ExtraTreesClassifier
-def train_and_test_model_with_extra_tree(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7):
+def train_and_test_model_with_extra_tree(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7,class_weight={0:1,1:1}):
     # tuned_parameters = {'criterion':['gini','entropy'],'n_estimators':[10, 25, 50]}
     #
     # grid_search =GridSearchCV(ExtraTreesClassifier(n_jobs=-1), param_grid=tuned_parameters, cv=5, scoring='accuracy')
@@ -583,7 +605,7 @@ def train_and_test_model_with_extra_tree(data_dim,n_time_steps,all_data_list, al
     #     print("\t%s: %r" % (param_name, best_parameters[param_name]))
 
     print "ExtraTreesClassifier"
-    etc = ExtraTreesClassifier(n_jobs=-1,criterion='entropy',n_estimators=100)
+    etc = ExtraTreesClassifier(n_jobs=-1,criterion='entropy',n_estimators=100,class_weight=class_weight)
     acc_scores = cross_val_score(etc,all_data_list, all_label_list, cv= 5, scoring='accuracy')
     print "acc_scores:",
     print acc_scores
@@ -607,7 +629,7 @@ def train_and_test_model_with_extra_tree(data_dim,n_time_steps,all_data_list, al
     print "mean of accuracy: %.6f, precision:%.6f, recall:%.6f, f1:%.6f, roc_auc:%.6f" % (acc_scores.mean(), precision.mean(), recall.mean(), f1.mean(), roc_auc.mean())
 
 #LinearSVC
-def train_and_test_model_with_svm(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7):
+def train_and_test_model_with_svm(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7,class_weight={0:1,1:1}):
     # tuned_parameters = {'C':[5.0, 10.0]}
     #
     # grid_search =GridSearchCV(LinearSVC(), param_grid=tuned_parameters, cv=5, scoring='accuracy')
@@ -632,7 +654,7 @@ def train_and_test_model_with_svm(data_dim,n_time_steps,all_data_list, all_label
     #     print("\t%s: %r" % (param_name, best_parameters[param_name]))
 
     print "LinearSVC"
-    svc = LinearSVC(C=10.0)
+    svc = LinearSVC(C=10.0,class_weight=class_weight)
     acc_scores = cross_val_score(svc,all_data_list, all_label_list, cv= 5, scoring='accuracy')
     print "acc_scores:",
     print acc_scores
@@ -705,7 +727,7 @@ def train_and_test_model_with_rbf_nu_svm(data_dim,n_time_steps,all_data_list, al
     print "mean of accuracy: %.6f, precision:%.6f, recall:%.6f, f1:%.6f, roc_auc:%.6f" % (acc_scores.mean(), precision.mean(), recall.mean(), f1.mean(), roc_auc.mean())
 
 #DecisionTree
-def train_and_test_model_with_decision_tree(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7):
+def train_and_test_model_with_decision_tree(data_dim,n_time_steps,all_data_list, all_label_list,split_ratio=0.7,class_weight={0:1,1:1}):
     # tuned_parameters = {'max_depth':[4, 6, 8]}
     #
     # grid_search =GridSearchCV(DecisionTreeClassifier(), param_grid=tuned_parameters, cv=5, scoring='accuracy')
@@ -730,7 +752,7 @@ def train_and_test_model_with_decision_tree(data_dim,n_time_steps,all_data_list,
     #     print("\t%s: %r" % (param_name, best_parameters[param_name]))
 
     print "DecisionTreeClassifier"
-    dtc = DecisionTreeClassifier(max_depth=10)
+    dtc = DecisionTreeClassifier(max_depth=10,class_weight=class_weight)
     acc_scores = cross_val_score(dtc,all_data_list, all_label_list, cv= 5, scoring='accuracy')
     print "acc_scores:",
     print acc_scores
