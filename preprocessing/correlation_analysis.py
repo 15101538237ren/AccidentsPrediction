@@ -5,7 +5,10 @@ from import_data import unicode_csv_reader
 import numpy as np #导入Numpy
 from AccidentsPrediction.settings import BASE_DIR
 from scipy.stats import spearmanr, pearsonr
-import plotly.plotly
+import pandas as pd
+import plotly
+import plotly.graph_objs as go
+
 from util import second_format, date_format, get_work_day_data_for_train,get_holiday_and_tiaoxiu_data_for_train,\
     holiday_7_list, holiday_3_list,tiaoxiu_list,holiday_3_list_flatten,holiday_7_list_flatten,LAST_WEEK_KEY,YESTERDAY_KEY,LAST_N_HOUR_KEY,LABEL_KEY,get_conv_kernal_crespond_data
 import pickle
@@ -24,7 +27,7 @@ SPATIAL_LAYER = "outerlayer:"
 
 #计算两个经纬度点的距离
 def calc_distance(lat1,lng1,lat2,lng2):
-    return math.fabs(lat1 - lat2) + math.fabs(lng1 - lng2)
+    return int(math.fabs(lat1 - lat2) + math.fabs(lng1 - lng2))
 
 #生成每个id对应的距离id字典
 def generate_distance_dict(n_lat, n_lng, max_d = 15):
@@ -34,13 +37,13 @@ def generate_distance_dict(n_lat, n_lng, max_d = 15):
         for j_lat in range(n_lat):
             id = i_lng * n_lat + j_lat
             distance_dict[id] = {}
-            for d in range(max_d):
+            for d in range(1, max_d + 1):
                 distance_dict[id][d] = []
 
     ids = range(n_lng * n_lat)
     for id1 in ids:
-        lat1 = id % n_lat
-        lng1 = id / n_lat
+        lat1 = id1 % n_lat
+        lng1 = id1 / n_lat
 
         for lng2 in range(n_lng):
             for lat2 in range(n_lat):
@@ -50,6 +53,119 @@ def generate_distance_dict(n_lat, n_lng, max_d = 15):
                     distance_dict[id1][distance].append(id2)
 
     return distance_dict
+
+#计算在时间dt_start, dt_end内的C(k,t)即空间相关性
+def calc_C_t(dt_start,dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k = 15):
+    dt_now = dt_start
+    rtn_dict = {}
+    distance_dict = generate_distance_dict(n_lat,n_lng,max_k)
+    while dt_now < dt_end:
+        dt_str = dt_now.strftime(second_format)
+        rtn_dict[dt_str] = {}
+        accident_arrays_of_dt = Accidents_Array.objects.filter(create_time=dt_now, time_interval=time_interval, spatial_interval=spatial_interval)
+        if len(accident_arrays_of_dt):
+            accident_array_of_dt = accident_arrays_of_dt[0]
+            content = np.array([float(item) for item in accident_array_of_dt.content.split(",")])
+            a_mean = content.mean()
+            content_distance = {}
+            for k in range(1, max_k + 1):
+                content_distance[k] = []
+                ck_arr = [distance_dict[id1][k] for id1 in range(n_lat * n_lng)]
+
+                for id_arr in ck_arr:
+                    content_arr = [content[id1] for id1 in id_arr]
+                    content_arr_mean = np.array(content_arr).mean()
+                    #距离为k的点的事故量均值
+                    content_distance[k].append(content_arr_mean)
+                pre = np.array(content - [a_mean] * (n_lat * n_lng))
+                post = np.array(np.array(content_distance[k]) - [a_mean] * (n_lat * n_lng))
+                pre_sum = (pre * post).sum()
+                post_sum = (pre * pre).sum()
+                ck_t = pre_sum / post_sum if math.fabs(post_sum) > 1e-6 else 0.0
+                rtn_dict[dt_str][k] = ck_t
+        print "finish %s calc_C_t" % dt_str
+        dt_now += datetime.timedelta(minutes=time_interval)
+    return rtn_dict
+
+#计算时间相关性
+def f_k_tau(dt_start, dt_end, time_interval, spatial_interval,n_lat,n_lng, max_tau = 8*24, max_k = 15):
+    ck_dict = calc_C_t(dt_start,dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k)
+    t_start_end = dt_end - datetime.timedelta(minutes=max_tau * time_interval)
+
+    f_k_tau_dict = {}
+
+    dt_list_for_mean = []
+    dt_now = dt_start
+
+    while dt_now < dt_end:
+        dt_str = dt_now.strftime(second_format)
+        dt_list_for_mean.append(dt_str)
+        dt_now += datetime.timedelta(minutes=time_interval)
+
+    for k in range(1, max_k + 1):
+        ck_mean = np.array([ck_dict[dt_str_tmp][k] for dt_str_tmp in dt_list_for_mean]).mean()
+
+        f_k_tau_dict[k] = {}
+        for tau in range(1, max_tau + 1):
+            dt_now = dt_start
+            ckt_list = []
+            ckt_plus_tau_list = []
+            while dt_now < t_start_end:
+                dt_str = dt_now.strftime(second_format)
+                ckt_list.append(ck_dict[dt_str][k])
+
+                dt_tau = dt_now + datetime.timedelta(minutes=tau * time_interval)
+                dt_tau_str = dt_tau.strftime(second_format)
+                ckt_plus_tau_list.append(ck_dict[dt_tau_str][k])
+
+                dt_now += datetime.timedelta(minutes=time_interval)
+
+            pre = np.array(np.array(ckt_list) - [ck_mean] * len(ckt_list))
+            post = np.array(np.array(ckt_plus_tau_list) - [ck_mean] * len(ckt_list))
+            pre_sum = (pre * post).sum()
+            post_sum = (pre * pre).sum()
+            f_k_tau_val = pre_sum / post_sum if math.fabs(post_sum) > 1e-6 else 0.0
+            f_k_tau_dict[k][tau] = f_k_tau_val
+        print "finish f_k_tau %d of %d" % (k, max_k)
+    return [max_k, max_tau, f_k_tau_dict]
+def surface_plot_of_f_k_tau(out_csv_path, rtn_val_list):
+    [max_k, max_tau, f_k_tau_dict] = rtn_val_list
+    csv_file = open(out_csv_path,"w")
+    # first_line = "," + ','.join([str(tau) for tau in range(1, max_tau + 1)]) + "\n"
+    # csv_file.write(first_line)
+    for k in range(1, max_k +1):
+        vals_to_wrt = []#[str(k)]
+        for tau in range(1, max_tau + 1):
+            vals_to_wrt.append(str(round(f_k_tau_dict[k][tau],3)))
+
+        line_to_wrt = ','.join(vals_to_wrt) + "\n"
+        csv_file.write(line_to_wrt)
+    print "finish write %s" % out_csv_path
+    csv_file.close()
+
+    z_data = pd.read_csv(out_csv_path)
+
+    data = [
+        go.Surface(
+            z=z_data.as_matrix()
+        )
+    ]
+
+    layout = go.Layout(
+        title='Ck tau',
+        autosize=False,
+        width=500,
+        height=500,
+        margin=dict(
+            l=65,
+            r=50,
+            b=65,
+            t=90
+        )
+    )
+
+    plotly.offline.plot({"data" : data , "layout" : layout})
+
 # 计算皮尔逊相关系数r(d)
 def calc_C_d_by_pearson_correlation(CpG_pairs):
     sum_pre = 0.0
