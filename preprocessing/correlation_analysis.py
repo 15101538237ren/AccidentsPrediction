@@ -22,6 +22,34 @@ YESTERDAY_STR = "yesterday:"
 LAST_WEEK_STR = "last week:"
 SPATIAL_LAYER = "outerlayer:"
 
+#计算两个经纬度点的距离
+def calc_distance(lat1,lng1,lat2,lng2):
+    return math.fabs(lat1 - lat2) + math.fabs(lng1 - lng2)
+
+#生成每个id对应的距离id字典
+def generate_distance_dict(n_lat, n_lng, max_d = 15):
+    distance_dict = {}
+
+    for i_lng in range(n_lng):
+        for j_lat in range(n_lat):
+            id = i_lng * n_lat + j_lat
+            distance_dict[id] = {}
+            for d in range(max_d):
+                distance_dict[id][d] = []
+
+    ids = range(n_lng * n_lat)
+    for id1 in ids:
+        lat1 = id % n_lat
+        lng1 = id / n_lat
+
+        for lng2 in range(n_lng):
+            for lat2 in range(n_lat):
+                id2 = lng2 * n_lat + lat2
+                distance = calc_distance(lat1,lng1,lat2,lng2)
+                if (id2 != id1) and (distance <= max_d):
+                    distance_dict[id1][distance].append(id2)
+
+    return distance_dict
 # 计算皮尔逊相关系数r(d)
 def calc_C_d_by_pearson_correlation(CpG_pairs):
     sum_pre = 0.0
@@ -63,7 +91,8 @@ def get_spatial_related_data(data_shape,n_lng,n_lat,data_tmp, w, b, conv_param):
                 it_to_rtn = 1
             data_tmp_to_apd.append(it_to_rtn)
     return data_tmp_to_apd
-#计算式将相关性
+
+#计算时间相关性
 def calc_time_correlation(dt_list,count_limit,holiday_3_acc,holiday_7_acc,tiaoxiu_acc,work_day_acc,n,n_d,n_w,x_shape,n_lng,n_lat,w,b,conv_param):
     dt_cnt = 0
     #计算时间相关性的字典
@@ -181,6 +210,8 @@ def calc_time_correlation(dt_list,count_limit,holiday_3_acc,holiday_7_acc,tiaoxi
     for key,val in data_for_time_correlation_tmp.items():
         print "%s, %.4f" % (key,val)
     return data_for_time_correlation_tmp
+
+#计算空间相关性
 def calc_spatial_correlation(dt_list,spatial_extent,count_limit,holiday_3_acc,holiday_7_acc,tiaoxiu_acc,work_day_acc,n,n_d,n_w,x_shape,n_lng,n_lat,b):
     #计算空间相关性的字典
     data_for_spatial_correlation_dict = {}
@@ -250,6 +281,7 @@ def calc_spatial_correlation(dt_list,spatial_extent,count_limit,holiday_3_acc,ho
         spatial_spearman_corr_dict[key] = spearman_correlation_of_spatial
         print "Spearman: %s, r: %.4f, p-val:%.8f" % (key, spearman_correlation_of_spatial[0],spearman_correlation_of_spatial[1])
     return [spatial_pearson_corr_dict,spatial_spearman_corr_dict]
+
 #获取所有用于相关性分析的数据
 def get_all_data_for_analysis(dt_start, dt_end, time_interval, n, n_d, n_w, **params):
     #经度网格数量
