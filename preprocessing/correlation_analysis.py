@@ -128,20 +128,21 @@ def f_k_tau(dt_start, dt_end, time_interval, spatial_interval,n_lat,n_lng, max_t
             f_k_tau_dict[k][tau] = f_k_tau_val
         print "finish f_k_tau %d of %d" % (k, max_k)
     return [max_k, max_tau, f_k_tau_dict]
-def surface_plot_of_f_k_tau(out_csv_path, rtn_val_list):
-    [max_k, max_tau, f_k_tau_dict] = rtn_val_list
-    csv_file = open(out_csv_path,"w")
-    # first_line = "," + ','.join([str(tau) for tau in range(1, max_tau + 1)]) + "\n"
-    # csv_file.write(first_line)
-    for k in range(1, max_k +1):
-        vals_to_wrt = []#[str(k)]
-        for tau in range(1, max_tau + 1):
-            vals_to_wrt.append(str(round(f_k_tau_dict[k][tau],3)))
+def surface_plot_of_f_k_tau(out_csv_path, rtn_val_list,load = False):
+    if not load:
+        [max_k, max_tau, f_k_tau_dict] = rtn_val_list
+        csv_file = open(out_csv_path,"w")
+        # first_line = "," + ','.join([str(tau) for tau in range(1, max_tau + 1)]) + "\n"
+        # csv_file.write(first_line)
+        for k in range(1, max_k +1):
+            vals_to_wrt = []#[str(k)]
+            for tau in range(1, max_tau + 1):
+                vals_to_wrt.append(str(round(f_k_tau_dict[k][tau],3)))
 
-        line_to_wrt = ','.join(vals_to_wrt) + "\n"
-        csv_file.write(line_to_wrt)
-    print "finish write %s" % out_csv_path
-    csv_file.close()
+            line_to_wrt = ','.join(vals_to_wrt) + "\n"
+            csv_file.write(line_to_wrt)
+        print "finish write %s" % out_csv_path
+        csv_file.close()
 
     z_data = pd.read_csv(out_csv_path)
 
@@ -152,19 +153,42 @@ def surface_plot_of_f_k_tau(out_csv_path, rtn_val_list):
     ]
 
     layout = go.Layout(
-        title='Ck tau',
+        title='Correlation of Accidents with Distance(/km) and Time-Delay(/hour)',
+        titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
+        scene=dict(
+            xaxis=dict(
+                title=r'Time-Delay', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
+                range=[0, 192],tick0=0, ticks='outside', dtick=20, ticklen=10, tickwidth=3,
+                tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
+                zerolinecolor='#000000', zerolinewidth=3,
+
+
+            ),
+            yaxis=dict(
+                title='Distance', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
+                range=[0, 20], tick0=0, ticks='outside', dtick=2, ticklen=10, tickwidth=3,
+                tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
+                zerolinecolor='#000000', zerolinewidth=3,
+            ),
+            zaxis=dict(
+                title='Correlation', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
+                range=[-0.6, 0.6], tick0=0, ticks='outside', dtick=0.2, ticklen=10, tickwidth=3,
+                tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
+                zerolinecolor='#000000', zerolinewidth=3,
+            )
+        ),
         autosize=False,
-        width=500,
-        height=500,
+        width=800,
+        height=700,
         margin=dict(
-            l=65,
-            r=50,
-            b=65,
-            t=90
-        )
+            l=10,
+            r=10,
+            b=10,
+            t=60
+        ),
     )
 
-    plotly.offline.plot({"data" : data , "layout" : layout})
+    plotly.offline.plot({"data" : data , "layout" : layout},filename='Correlation_Results.html')
 
 # 计算皮尔逊相关系数r(d)
 def calc_C_d_by_pearson_correlation(CpG_pairs):

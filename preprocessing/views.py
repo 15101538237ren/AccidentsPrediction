@@ -75,8 +75,12 @@ def index(request):
     out_csv_path = BASE_DIR+'/preprocessing/data/surface.csv'
 
     # rtn_dict = calc_C_t(dt_start,dt_end, time_interval, spatial_interval,param_1000['n_lat'], param_1000['n_lng'], max_k)
-    rtn_val_list = f_k_tau(dt_start, dt_end, time_interval, spatial_interval, param_1000['n_lat'], param_1000['n_lng'], max_tau, max_k)
-    surface_plot_of_f_k_tau(out_csv_path, rtn_val_list)
+
+    #rtn_val_list = f_k_tau(dt_start, dt_end, time_interval, spatial_interval, param_1000['n_lat'], param_1000['n_lng'], max_tau, max_k)
+
+    load = True
+    rtn_val_list = []
+    surface_plot_of_f_k_tau(out_csv_path, rtn_val_list, load)
 
     print "base_dir: %s" % BASE_DIR
 
