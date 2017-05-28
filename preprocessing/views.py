@@ -56,30 +56,36 @@ def index(request):
     param_1000['n_lng'] = 29
     param_1000['n_lat'] = 32
 
-    # label_all_accidents(outpkl_file_path, 60, **param_1000)
+
+    time_interval = 10
+    spatial_interval = 1000
+    max_k = 20
+    max_tau = 8 * 6
+    # label_all_accidents(outpkl_file_path, time_interval, **param_1000)
     # label_all_function_regions(input_file_list,**param_1000)
+
     #return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 
     #get_work_day_data(work_day_bounds,time_interval=60, spatial_interval=1000)
     # get_holiday_and_tiaoxiu_data_for_train(time_interval=30, spatial_interval=1000, n = 5, n_d = 3, n_w = 4)
     # dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
     dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
-    dt_end = datetime.datetime.strptime("2016-01-31 00:00:00",second_format)
-    # dt_end = datetime.datetime.strptime("2016-04-01 00:00:00",second_format)
+    # dt_end = datetime.datetime.strptime("2016-01-01 23:59:59",second_format)
+    # dt_end = datetime.datetime.strptime("2016-01-31 00:00:00",second_format)
+    dt_end = datetime.datetime.strptime("2016-02-01 00:00:00",second_format)
     # dt_end = datetime.datetime.strptime("2017-02-28 23:59:59",second_format)
-    time_interval = 60
-    spatial_interval = 1000
-    max_k = 20
-    max_tau = 8*24
 
     out_csv_path = BASE_DIR+'/preprocessing/data/surface.csv'
 
     # rtn_dict = calc_C_t(dt_start,dt_end, time_interval, spatial_interval,param_1000['n_lat'], param_1000['n_lng'], max_k)
+    outpkl_ct_path = BASE_DIR+'/preprocessing/data/correlation_of_time_delay.pkl'
+    # rtn_val_list = f_k_tau(outpkl_ct_path, dt_start, dt_end, time_interval, spatial_interval, param_1000['n_lat'], param_1000['n_lng'], max_tau, max_k)
 
-    #rtn_val_list = f_k_tau(dt_start, dt_end, time_interval, spatial_interval, param_1000['n_lat'], param_1000['n_lng'], max_tau, max_k)
-
+    with open(outpkl_ct_path, 'rb') as handle:
+        f_k_tau_dict = pickle.load(handle)
+    print "load succ"
     load = True
-    rtn_val_list = []
+    rtn_val_list = [max_k, max_tau, f_k_tau_dict]
     surface_plot_of_f_k_tau(out_csv_path, rtn_val_list, load)
 
     print "base_dir: %s" % BASE_DIR

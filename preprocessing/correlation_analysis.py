@@ -37,7 +37,7 @@ def generate_distance_dict(n_lat, n_lng, max_d = 15):
         for j_lat in range(n_lat):
             id = i_lng * n_lat + j_lat
             distance_dict[id] = {}
-            for d in range(1, max_d + 1):
+            for d in range(max_d + 1):
                 distance_dict[id][d] = []
 
     ids = range(n_lng * n_lat)
@@ -55,7 +55,7 @@ def generate_distance_dict(n_lat, n_lng, max_d = 15):
     return distance_dict
 
 #计算在时间dt_start, dt_end内的C(k,t)即空间相关性
-def calc_C_t(dt_start,dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k = 15):
+def calc_C_t(outpkl_path, dt_start, dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k = 15):
     dt_now = dt_start
     rtn_dict = {}
     distance_dict = generate_distance_dict(n_lat,n_lng,max_k)
@@ -68,7 +68,7 @@ def calc_C_t(dt_start,dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k
             content = np.array([float(item) for item in accident_array_of_dt.content.split(",")])
             a_mean = content.mean()
             content_distance = {}
-            for k in range(1, max_k + 1):
+            for k in range(max_k + 1):
                 content_distance[k] = []
                 ck_arr = [distance_dict[id1][k] for id1 in range(n_lat * n_lng)]
 
@@ -85,11 +85,15 @@ def calc_C_t(dt_start,dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k
                 rtn_dict[dt_str][k] = ck_t
         print "finish %s calc_C_t" % dt_str
         dt_now += datetime.timedelta(minutes=time_interval)
+    print "start dump rtn_dict!"
+    with open(outpkl_path, 'wb') as handle:
+        pickle.dump(rtn_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print "dump success!"
     return rtn_dict
 
 #计算时间相关性
-def f_k_tau(dt_start, dt_end, time_interval, spatial_interval,n_lat,n_lng, max_tau = 8*24, max_k = 15):
-    ck_dict = calc_C_t(dt_start,dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k)
+def f_k_tau(outpkl_path,dt_start, dt_end, time_interval, spatial_interval,n_lat,n_lng, max_tau = 8*24, max_k = 15):
+    ck_dict = calc_C_t(outpkl_path,dt_start,dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k)
     t_start_end = dt_end - datetime.timedelta(minutes=max_tau * time_interval)
 
     f_k_tau_dict = {}
@@ -102,11 +106,11 @@ def f_k_tau(dt_start, dt_end, time_interval, spatial_interval,n_lat,n_lng, max_t
         dt_list_for_mean.append(dt_str)
         dt_now += datetime.timedelta(minutes=time_interval)
 
-    for k in range(1, max_k + 1):
+    for k in range(max_k + 1):
         ck_mean = np.array([ck_dict[dt_str_tmp][k] for dt_str_tmp in dt_list_for_mean]).mean()
 
         f_k_tau_dict[k] = {}
-        for tau in range(1, max_tau + 1):
+        for tau in range(max_tau + 1):
             dt_now = dt_start
             ckt_list = []
             ckt_plus_tau_list = []
@@ -129,14 +133,14 @@ def f_k_tau(dt_start, dt_end, time_interval, spatial_interval,n_lat,n_lng, max_t
         print "finish f_k_tau %d of %d" % (k, max_k)
     return [max_k, max_tau, f_k_tau_dict]
 def surface_plot_of_f_k_tau(out_csv_path, rtn_val_list,load = False):
+    [max_k, max_tau, f_k_tau_dict] = rtn_val_list
     if not load:
-        [max_k, max_tau, f_k_tau_dict] = rtn_val_list
         csv_file = open(out_csv_path,"w")
         # first_line = "," + ','.join([str(tau) for tau in range(1, max_tau + 1)]) + "\n"
         # csv_file.write(first_line)
-        for k in range(1, max_k +1):
+        for k in range(max_k +1):
             vals_to_wrt = []#[str(k)]
-            for tau in range(1, max_tau + 1):
+            for tau in range(max_tau + 1):
                 vals_to_wrt.append(str(round(f_k_tau_dict[k][tau],3)))
 
             line_to_wrt = ','.join(vals_to_wrt) + "\n"
@@ -147,48 +151,63 @@ def surface_plot_of_f_k_tau(out_csv_path, rtn_val_list,load = False):
     z_data = pd.read_csv(out_csv_path)
 
     data = [
-        go.Surface(
+        go.Contour(
             z=z_data.as_matrix()
         )
     ]
 
     layout = go.Layout(
-        title='Correlation of Accidents with Distance(/km) and Time-Delay(/hour)',
+        title='Correlation of Accidents with Distance(/km) and Time-Delay(/10 min)',
         titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
-        scene=dict(
-            xaxis=dict(
+        # scene=dict(
+        #     xaxis=dict(
+        #         title=r'Time-Delay', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
+        #         range=[0, 192],tick0=0, ticks='outside', dtick=20, ticklen=10, tickwidth=3,
+        #         tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
+        #         zerolinecolor='#000000', zerolinewidth=3,
+        #
+        #
+        #     ),
+        #     yaxis=dict(
+        #         title='Distance', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
+        #         range=[0, 20], tick0=0, ticks='outside', dtick=2, ticklen=10, tickwidth=3,
+        #         tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
+        #         zerolinecolor='#000000', zerolinewidth=3,
+        #     ),
+        #     zaxis=dict(
+        #         title='Correlation', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
+        #         range=[-0.6, 0.6], tick0=0, ticks='outside', dtick=0.2, ticklen=10, tickwidth=3,
+        #         tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
+        #         zerolinecolor='#000000', zerolinewidth=3,
+        #     )
+        # ),
+
+        xaxis=dict(
                 title=r'Time-Delay', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
-                range=[0, 192],tick0=0, ticks='outside', dtick=20, ticklen=10, tickwidth=3,
+                range=[1, max_tau],tick0=0, ticks='outside', dtick=2, ticklen=int(math.ceil(max_tau/4)), tickwidth=3,
                 tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
                 zerolinecolor='#000000', zerolinewidth=3,
 
 
             ),
-            yaxis=dict(
-                title='Distance', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
-                range=[0, 20], tick0=0, ticks='outside', dtick=2, ticklen=10, tickwidth=3,
-                tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
-                zerolinecolor='#000000', zerolinewidth=3,
-            ),
-            zaxis=dict(
-                title='Correlation', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
-                range=[-0.6, 0.6], tick0=0, ticks='outside', dtick=0.2, ticklen=10, tickwidth=3,
-                tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
-                zerolinecolor='#000000', zerolinewidth=3,
-            )
+        yaxis=dict(
+            title='Distance', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
+            range=[1, max_k], tick0=0, ticks='outside', dtick=2, ticklen=10, tickwidth=3,
+            tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
+            zerolinecolor='#000000', zerolinewidth=3,
         ),
         autosize=False,
-        width=800,
+        width=1200,
         height=700,
         margin=dict(
-            l=10,
-            r=10,
-            b=10,
-            t=60
+            l=50,
+            r=50,
+            b=50,
+            t=50
         ),
     )
 
-    plotly.offline.plot({"data" : data , "layout" : layout},filename='Correlation_Results.html')
+    plotly.offline.plot({"data" : data , "layout" : layout},filename='Contour_Correlation_Results.html')
 
 # 计算皮尔逊相关系数r(d)
 def calc_C_d_by_pearson_correlation(CpG_pairs):
