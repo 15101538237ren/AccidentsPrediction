@@ -5,6 +5,8 @@ from import_data import unicode_csv_reader
 import numpy as np #导入Numpy
 from AccidentsPrediction.settings import BASE_DIR
 import pickle
+from class_for_shape import Vector2, Rect
+
 reload(sys)
 sys.setdefaultencoding('utf8')
 ## 六环
@@ -837,27 +839,36 @@ def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spati
                             break
     return tiaoxiu_accidents_for_train, holiday_accidents_for_train[0], holiday_accidents_for_train[1]
 def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
+    rects = {}
     output_file = open(output_file_path,"w")
-    cnt = 0
     for i_lat in range(len(lat_coors)-1):
         for j_lng in range(len(lng_coors)-1):
-            cnt += 1
+
+            id = j_lng * (len(lat_coors)-1) + i_lat
+
+
+
             min_lng1 = lng_coors[j_lng]
             max_lng1 = lng_coors[j_lng + 1]
             min_lat1 = lat_coors[i_lat]
             max_lat1 = lat_coors[i_lat + 1]
 
-            out_str ='''var rectangle_'''+str(cnt)+''' = new BMap.Polygon([
+            left_top = Vector2(min_lng1, max_lat1)
+            right_bottom = Vector2(max_lng1, min_lat1)
+            rect = Rect(left_top,right_bottom)
+            rects[id] = rect
+
+            out_str ='''var rectangle_'''+str(id)+''' = new BMap.Polygon([
                             new BMap.Point(''' + str(min_lng1) + ''',''' + str(min_lat1) + '''),
                             new BMap.Point(''' + str(max_lng1) + ''',''' + str(min_lat1) + '''),
                             new BMap.Point(''' + str(max_lng1) + ''',''' + str(max_lat1) + '''),
                             new BMap.Point(''' + str(min_lng1) + ''',''' + str(max_lat1) + ''')
                         ], {strokeColor:"red", strokeWeight:1, strokeOpacity:1,fillColor:''});\n
-                        map.addOverlay(rectangle_'''+str(cnt)+''');\n'''
+                        map.addOverlay(rectangle_'''+str(id)+''');\n'''
             output_file.write(out_str)
     output_file.close()
 
-    return 
+    return rects
 
 def generate_polylines_for_beijing(lng_coors, lat_coors,output_file_path,min_lat1,max_lat1,min_lng1,max_lng1):
     output_file = open(output_file_path,"w")
