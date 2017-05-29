@@ -5,7 +5,7 @@ from import_data import unicode_csv_reader
 import numpy as np #导入Numpy
 from AccidentsPrediction.settings import BASE_DIR
 import pickle
-from class_for_shape import Vector2, Rect
+from class_for_shape import Vector2, Rect, CheckRectLine
 
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -838,6 +838,87 @@ def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spati
                             #print "holiday len last saturday or sunday: %d" % len(last_monday_nw_arr)
                             break
     return tiaoxiu_accidents_for_train, holiday_accidents_for_train[0], holiday_accidents_for_train[1]
+
+#输入起始点,终止点,返回一个候选的rect id列表
+def query_rect_segment_in(start_point, end_point, spatial_interval,output_file_path,d_lat,d_lng,n_lat,n_lng):
+
+    segment_overlap_with_ids = []
+    #获取所有矩形
+    rect_dict = get_all_rects_of_beijing(spatial_interval,output_file_path)
+    size_of_dict = len(rect_dict)
+
+    min_lng1 = min(start_point.X, end_point.X)
+    max_lng1 = max(start_point.X, end_point.X)
+
+    min_lat1 = min(start_point.Y, end_point.Y)
+    max_lat1 = max(start_point.Y, end_point.Y)
+
+    lng_lat_list = [[start_point.X, start_point.Y],[end_point.X, end_point.Y]]
+
+    keys_to_detect = []
+
+    for key in range(size_of_dict):
+        rect = rect_dict[key]
+
+        l_lng = rect.LeftTop.X
+        r_lng = rect.RightBottom.X
+
+        up_lat = rect.LeftTop.Y
+        down_lat = rect.RightBottom.Y
+
+        #夹在两个点中间,不相交
+        if ((min_lng1 < l_lng < max_lng1) and ( min_lng1 < r_lng < max_lng1 )) or ( (min_lat1 < up_lat < max_lat1) and (min_lat1 < down_lat < max_lat1)):
+            keys_to_detect.append(key)
+
+    for key in keys_to_detect:
+        rect = rect_dict[key]
+        if CheckRectLine(start_point, end_point, rect):
+            segment_overlap_with_ids.append(key)
+
+    for item in lng_lat_list:
+        [lng, lat] = item
+        if (not (min_lng <= lng and lng <= max_lng and min_lat <= lat and lat <= max_lat)):
+            continue
+        else:
+
+            j_lat_origin = (float(lat) - min_lat)/d_lat
+            j_lat = int(math.ceil(j_lat_origin)) - 1
+            i_lng_origin = (float(lng) - min_lng)/d_lng
+            i_lng = int(math.ceil(i_lng_origin)) - 1
+            id = i_lng * n_lat + j_lat
+            segment_overlap_with_ids.append(id)
+
+    return segment_overlap_with_ids
+
+
+
+
+
+
+
+#输入空间间隔,返回北京市所有网格字典
+def get_all_rects_of_beijing(spatial_interval, output_file_path):
+    if spatial_interval == 500:
+        d_lat = 0.0042
+        d_lng = 0.006
+    else:
+        d_lat = 0.0084
+        d_lng = 0.012
+    n_lat_delta_origin = (max_lat - min_lat)/d_lat
+    n_lat_delta = int(math.ceil(n_lat_delta_origin)) + 1
+
+    n_lng_delta_origin = (max_lng - min_lng)/d_lng + 1
+    n_lng_delta = int(math.ceil(n_lng_delta_origin))
+
+    lng_coors = [min_lng + i * d_lng for i in range(n_lng_delta)]
+    lat_coors = [min_lat + i * d_lat for i in range(n_lat_delta)]
+    n_lng = len(lng_coors)-1
+    n_lat = len(lat_coors)-1
+    print "grid size = lng: %d * lat: %d\n" % (n_lng, n_lat)
+    rect_dict = generate_grid_for_beijing(lng_coors, lat_coors, output_file_path)
+
+    return rect_dict
+
 def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
     rects = {}
     output_file = open(output_file_path,"w")
@@ -845,8 +926,6 @@ def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
         for j_lng in range(len(lng_coors)-1):
 
             id = j_lng * (len(lat_coors)-1) + i_lat
-
-
 
             min_lng1 = lng_coors[j_lng]
             max_lng1 = lng_coors[j_lng + 1]
