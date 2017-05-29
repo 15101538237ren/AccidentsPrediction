@@ -856,6 +856,9 @@ def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
                         map.addOverlay(rectangle_'''+str(cnt)+''');\n'''
             output_file.write(out_str)
     output_file.close()
+
+    return 
+
 def generate_polylines_for_beijing(lng_coors, lat_coors,output_file_path,min_lat1,max_lat1,min_lng1,max_lng1):
     output_file = open(output_file_path,"w")
     cnt = 0
@@ -1262,8 +1265,8 @@ def get_liuhuan_poi(output_file_path, sep = 500):
     n_lat = len(lat_coors)-1
     print "grid size = lng: %d * lat: %d\n" % (n_lng, n_lat)
     generate_grid_ids(lng_coors,lat_coors)
-    #generate_grid_for_beijing(lng_coors, lat_coors,output_file_path)
-    generate_polylines_for_beijing(lng_coors,lat_coors,output_file_path,min_lat,lat_coors[n_lat],min_lng,lng_coors[n_lng])
+    generate_grid_for_beijing(lng_coors, lat_coors, output_file_path)
+    # generate_polylines_for_beijing(lng_coors,lat_coors,output_file_path,min_lat,lat_coors[n_lat],min_lng,lng_coors[n_lng])
     print 'min_lat: %f, max_lat: %f, min_lng: %f , max_lng: %f\n' % (min_lat, lat_coors[n_lat], min_lng, lng_coors[n_lng])
     return min_lat,max_lat,min_lng,max_lng
 

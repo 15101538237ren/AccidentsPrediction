@@ -38,8 +38,7 @@
             var polyline = new BMap.Polyline([
                 new BMap.Point(route_info["start_lon"], route_info["start_lat"]),
                 new BMap.Point(route_info["end_lon"], route_info["end_lat"])
-            ], {strokeColor: "red", strokeWeight: 2, strokeOpacity: 0.8, strokeStyle: "solid"});
-{#            polyline.addEventListener("mousedown",get_road_name(route_id));#}
+            ], {strokeColor: "blue", strokeWeight: 2, strokeOpacity: 0.8, strokeStyle: "solid"});
             map.addOverlay(polyline);
 
 {#            var smarker = new BMap.Marker(new BMap.Point(route_info["start_lon"], route_info["start_lat"]));  // 创建标注#}
@@ -65,5 +64,6 @@
 	}
 
 </script>
+<script type="text/javascript" src="{% static "js/grid.js" %}"></script>
 
 {% endblock %}

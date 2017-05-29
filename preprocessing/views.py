@@ -7,11 +7,23 @@ from util import *
 from AccidentsPrediction.settings import BASE_DIR
 from correlation_analysis import f_k_tau, surface_plot_of_f_k_tau, export_accidents_array_to_xlxs,calc_C_t,get_all_data_for_analysis
 from route_related import get_all_routes
+from class_for_shape import Rect, Vector2, CheckRectLine
 from classifier import *
 from imblearn.under_sampling import RandomUnderSampler
 from collections import Counter
 # Create your views here.
 def visualize_roads(request):
+
+    left_top = Vector2(0.0, 10.0)
+    right_bottom = Vector2(10.0, 0.0)
+
+    rect = Rect(left_top, right_bottom)
+
+    point_start = Vector2(5.0, 5.0)
+    point_end = Vector2(12.0, 12.0)
+
+    print "CheckRectLine: %d" % CheckRectLine(point_start, point_end, rect)
+
     input_file_path = BASE_DIR+'/preprocessing/data/routeinfo.csv'
     outjson_file_path = BASE_DIR+'/static/json/roads.json'
     get_all_routes(input_file_path, outjson_file_path)
@@ -176,7 +188,7 @@ def index(request):
 
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 def grid(request):
-    out_data_file = BASE_DIR+'/static/js/grid_polyline.js'
+    out_data_file = BASE_DIR+'/static/js/grid.js'
     sep = 1000
     min_lat,max_lat,min_lng,max_lng = get_liuhuan_poi(out_data_file, sep= sep)
     return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
