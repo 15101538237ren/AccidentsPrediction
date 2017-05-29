@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block title %}道路可视化{% endblock %}
+{% block head %}
+<script type="text/javascript">
+    var road_addr = "{% static "json/roads.json" %}";
+    var roads_dict;
+
+
+</script>
+{% endblock %}
+{% block content %}
+    <div class="container">
+
+    </div>
+	<div id="allmap">
+
+    </div>
+{% endblock %}
+{% block endscript %}
+<script type="text/javascript">
+
+	// 百度地图API功能
+	var map = new BMap.Map("allmap");
+	map.centerAndZoom(new BMap.Point(116.404, 39.915), 12);     // 初始化地图,设置中心点坐标和地图级别
+    map.enableScrollWheelZoom();                        //启用滚轮放大缩小
+    var top_left_control = new BMap.ScaleControl({anchor: BMAP_ANCHOR_BOTTOM_LEFT});// 左上角，添加比例尺
+	var top_left_navigation = new BMap.NavigationControl({anchor: BMAP_ANCHOR_BOTTOM_LEFT});  //左上角，添加默认缩放平移控件
+    map.addControl(top_left_control);
+    map.addControl(top_left_navigation);
+    map.enableKeyboard();
+
+    $.get(road_addr).done(function (rtn_json) {
+        roads_dict = rtn_json;
+        for (var route_id in roads_dict) {
+            var route_info = roads_dict[route_id];
+
+            var polyline = new BMap.Polyline([
+                new BMap.Point(route_info["start_lon"], route_info["start_lat"]),
+                new BMap.Point(route_info["end_lon"], route_info["end_lat"])
+            ], {strokeColor: "red", strokeWeight: 2, strokeOpacity: 0.8, strokeStyle: "solid"});
+{#            polyline.addEventListener("mousedown",get_road_name(route_id));#}
+            map.addOverlay(polyline);
+
+{#            var smarker = new BMap.Marker(new BMap.Point(route_info["start_lon"], route_info["start_lat"]));  // 创建标注#}
+{#            map.addOverlay(smarker);              // 将标注添加到地图中#}
+{##}
+{#            var slabel = new BMap.Label(get_sroad_name(route_id),{offset:new BMap.Size(20,-10)});#}
+{#            smarker.setLabel(slabel);#}
+{##}
+{#            var emarker = new BMap.Marker(new BMap.Point(route_info["end_lon"], route_info["end_lat"]));  // 创建标注#}
+{#            map.addOverlay(emarker);              // 将标注添加到地图中#}
+{##}
+{#            var elabel = new BMap.Label(get_eroad_name(route_id),{offset:new BMap.Size(20,-10)});#}
+{#            emarker.setLabel(elabel);#}
+        }
+    });
+
+	function get_sroad_name(id){
+		return "起始路名:"+roads_dict[id]["start_name"];
+	}
+
+    function get_eroad_name(id){
+		return "结束路名:"+roads_dict[id]["end_name"];
+	}
+
+</script>
+
+{% endblock %}

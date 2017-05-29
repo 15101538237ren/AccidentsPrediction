@@ -5,11 +5,18 @@ from django.http import JsonResponse
 from import_data import *
 from util import *
 from AccidentsPrediction.settings import BASE_DIR
-from correlation_analysis import f_k_tau, surface_plot_of_f_k_tau, calc_C_t
+from correlation_analysis import f_k_tau, surface_plot_of_f_k_tau, export_accidents_array_to_xlxs,calc_C_t,get_all_data_for_analysis
+from route_related import get_all_routes
 from classifier import *
 from imblearn.under_sampling import RandomUnderSampler
 from collections import Counter
 # Create your views here.
+def visualize_roads(request):
+    input_file_path = BASE_DIR+'/preprocessing/data/routeinfo.csv'
+    outjson_file_path = BASE_DIR+'/static/json/roads.json'
+    get_all_routes(input_file_path, outjson_file_path)
+    return render_to_response('prep/roads_visualization.html', locals(), context_instance=RequestContext(request))
+
 def import_data_to_db():
     i = 11
     input_call_incidence_file = "/Users/Ren/PycharmProjects/PoliceIndex/beijing_data/2016_accidents/"+str(i)+".xls"
@@ -57,10 +64,11 @@ def index(request):
     param_1000['n_lat'] = 32
 
 
-    time_interval = 10
+    time_interval = 60
     spatial_interval = 1000
     max_k = 20
-    max_tau = 8 * 6
+    max_tau = 8 * int(60/time_interval)
+
     # label_all_accidents(outpkl_file_path, time_interval, **param_1000)
     # label_all_function_regions(input_file_list,**param_1000)
 
@@ -68,38 +76,45 @@ def index(request):
 
     #get_work_day_data(work_day_bounds,time_interval=60, spatial_interval=1000)
     # get_holiday_and_tiaoxiu_data_for_train(time_interval=30, spatial_interval=1000, n = 5, n_d = 3, n_w = 4)
-    # dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
-    dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
+    dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
+    # dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
     # dt_end = datetime.datetime.strptime("2016-01-01 23:59:59",second_format)
     # dt_end = datetime.datetime.strptime("2016-01-31 00:00:00",second_format)
-    dt_end = datetime.datetime.strptime("2016-02-01 00:00:00",second_format)
-    # dt_end = datetime.datetime.strptime("2017-02-28 23:59:59",second_format)
-
-    out_csv_path = BASE_DIR+'/preprocessing/data/surface.csv'
-
-    # rtn_dict = calc_C_t(dt_start,dt_end, time_interval, spatial_interval,param_1000['n_lat'], param_1000['n_lng'], max_k)
-    outpkl_ct_path = BASE_DIR+'/preprocessing/data/correlation_of_time_delay.pkl'
-    # rtn_val_list = f_k_tau(outpkl_ct_path, dt_start, dt_end, time_interval, spatial_interval, param_1000['n_lat'], param_1000['n_lng'], max_tau, max_k)
-
-    with open(outpkl_ct_path, 'rb') as handle:
-        f_k_tau_dict = pickle.load(handle)
-    print "load succ"
-    load = True
-    rtn_val_list = [max_k, max_tau, f_k_tau_dict]
-    surface_plot_of_f_k_tau(out_csv_path, rtn_val_list, load)
-
-    print "base_dir: %s" % BASE_DIR
-
+    # dt_end = datetime.datetime.strptime("2016-01-02 00:00:00",second_format)
+    dt_end = datetime.datetime.strptime("2017-02-28 23:59:59",second_format)
     outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
     n = 12
     n_d = n_w = 5
+    # get_all_data_for_analysis(dt_start,dt_end,time_interval=time_interval,n=n,n_d=n_d,n_w=n_w,**param_1000)
+
+    out_csv_path = BASE_DIR+'/preprocessing/data/surface_'+str(time_interval)+'min.csv'
+
+
+    outpkl_ct_path = BASE_DIR+'/preprocessing/data/correlation_of_time_delay_'+str(time_interval)+'min.pkl'
+    export_xlxs_path = BASE_DIR+'/preprocessing/data/accidents_of_timeinterval_'+str(time_interval)+'min.xls'
+    # rtn_dict = calc_C_t(outpkl_ct_path,dt_start,dt_end, time_interval, spatial_interval,param_1000['n_lat'], param_1000['n_lng'], max_k)
+
+    #export_accidents_array_to_xlxs(dt_start,dt_end,time_interval,spatial_interval,param_1000['n_lng'],param_1000['n_lat'],export_xlxs_path)
+
+    load = True
+
+    if not load:
+        rtn_val_list = f_k_tau(outpkl_ct_path, dt_start, dt_end, time_interval, spatial_interval, param_1000['n_lat'], param_1000['n_lng'], max_tau, max_k)
+    else:
+        with open(outpkl_ct_path, 'rb') as handle:
+            f_k_tau_dict = pickle.load(handle)
+        print "load succ"
+        rtn_val_list = [max_k, max_tau, f_k_tau_dict]
+    # surface_plot_of_f_k_tau(out_csv_path, rtn_val_list, load)
+
+    print "base_dir: %s" % BASE_DIR
+
 
     n_time_steps = n + (n_d + n_w ) * 2 + 2
     split_ratio = 0.7
     data_dim = 1
     class_weight = {0: 1, 1: 19}
 
-    # get_all_data_for_analysis(dt_start,dt_end,time_interval=time_interval,n=n,n_d=n_d,n_w=n_w,**param_1000)
 
     # [all_data_list, all_label_list] = generate_data_for_train_and_test(outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **param_1000)
     #

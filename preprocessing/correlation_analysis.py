@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import sys,os,requests,urllib,json,math,pickle,datetime,simplejson,decimal
+import sys,os,requests,urllib,json,math,pickle,datetime,xlwt
 from  models import *
 from import_data import unicode_csv_reader
 import numpy as np #导入Numpy
@@ -9,7 +9,7 @@ import pandas as pd
 import plotly
 import plotly.graph_objs as go
 
-from util import second_format, date_format, get_work_day_data_for_train,get_holiday_and_tiaoxiu_data_for_train,\
+from util import second_format, minute_format2, date_format, get_work_day_data_for_train,get_holiday_and_tiaoxiu_data_for_train,\
     holiday_7_list, holiday_3_list,tiaoxiu_list,holiday_3_list_flatten,holiday_7_list_flatten,LAST_WEEK_KEY,YESTERDAY_KEY,LAST_N_HOUR_KEY,LABEL_KEY,get_conv_kernal_crespond_data
 import pickle
 reload(sys)
@@ -20,11 +20,72 @@ OUT_FIGURES_DIR = os.path.join(BASE_DIR, 'static','figures')
 work_day_dt_start = datetime.datetime.strptime("2016-01-12 00:00:00", second_format)
 holiday_dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
 
+
 LAST_N_HOUR_STR = "last_n_hour:"
 YESTERDAY_STR = "yesterday:"
 LAST_WEEK_STR = "last week:"
 SPATIAL_LAYER = "outerlayer:"
 
+'''
+设置单元格样式
+'''
+
+def set_style(name,height,bold=False):
+  style = xlwt.XFStyle() # 初始化样式
+
+  font = xlwt.Font() # 为样式创建字体
+  font.name = name # 'Times New Roman'
+  font.bold = bold
+  font.color_index = 4
+  font.height = height
+
+  # borders= xlwt.Borders()
+  # borders.left= 6
+  # borders.right= 6
+  # borders.top= 6
+  # borders.bottom= 6
+
+  style.font = font
+  # style.borders = borders
+
+  return style
+
+
+def export_accidents_array_to_xlxs(dt_start,dt_end,time_interval,spatial_interval,n_lng,n_lat,export_xlxs_path):
+
+    f = xlwt.Workbook() #创建工作簿
+    font_style = set_style('Times New Roman',220,False)
+    dt_now = dt_start
+    while dt_now < dt_end:
+
+        dt_str = dt_now.strftime(minute_format2)
+
+        sheet = f.add_sheet(dt_str,cell_overwrite_ok=True)
+
+        accident_arrays_of_dt = Accidents_Array.objects.filter(create_time=dt_now, time_interval=time_interval, spatial_interval=spatial_interval)
+        if len(accident_arrays_of_dt):
+            accident_array_of_dt = accident_arrays_of_dt[0]
+            content = np.array([int(item) for item in accident_array_of_dt.content.split(",")])
+            ctt_arr = [0 for item in range(n_lng*n_lat)]
+
+            for i_lng in range(n_lng):
+                for j_lat in range(n_lat):
+                    id = i_lng * n_lat + j_lat
+                    ctt_arr[id] = content[id]
+            ctt_grid = []
+            cnt = 0
+            for j_lat in xrange(n_lat,0,-1):
+                ctt_grid.append([])
+                cnt_i = 0
+                for i_lng in xrange(n_lng,0,-1):
+                    id = cnt_i * n_lat + cnt
+                    ctt_grid[cnt].append(ctt_arr[id])
+                    sheet.write(cnt,cnt_i,ctt_arr[id])
+                    cnt_i +=1
+                cnt += 1
+        print "finish write %s" % dt_str
+        dt_now += datetime.timedelta(minutes=time_interval)
+    f.save(export_xlxs_path)
 #计算两个经纬度点的距离
 def calc_distance(lat1,lng1,lat2,lng2):
     return int(math.fabs(lat1 - lat2) + math.fabs(lng1 - lng2))
@@ -49,7 +110,8 @@ def generate_distance_dict(n_lat, n_lng, max_d = 15):
             for lat2 in range(n_lat):
                 id2 = lng2 * n_lat + lat2
                 distance = calc_distance(lat1,lng1,lat2,lng2)
-                if (id2 != id1) and (distance <= max_d):
+                #自身与自身之间的距离也算
+                if distance <= max_d:
                     distance_dict[id1][distance].append(id2)
 
     return distance_dict
@@ -92,8 +154,8 @@ def calc_C_t(outpkl_path, dt_start, dt_end, time_interval, spatial_interval,n_la
     return rtn_dict
 
 #计算时间相关性
-def f_k_tau(outpkl_path,dt_start, dt_end, time_interval, spatial_interval,n_lat,n_lng, max_tau = 8*24, max_k = 15):
-    ck_dict = calc_C_t(outpkl_path,dt_start,dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k)
+def f_k_tau(outpkl_path, dt_start, dt_end, time_interval, spatial_interval,n_lat,n_lng, max_tau = 8*24, max_k = 15):
+    ck_dict = calc_C_t(outpkl_path, dt_start,dt_end, time_interval, spatial_interval,n_lat,n_lng, max_k)
     t_start_end = dt_end - datetime.timedelta(minutes=max_tau * time_interval)
 
     f_k_tau_dict = {}
@@ -562,11 +624,43 @@ def get_all_data_for_analysis(dt_start, dt_end, time_interval, n, n_d, n_w, **pa
             accidents_of_weather_stat[v["weather"]].append(float(v["cnt"]))
     accidents_of_weather = [[],[]]
 
+    colors = ['rgba(93, 164, 214, 0.5)', 'rgba(255, 144, 14, 0.5)', 'rgba(44, 160, 101, 0.5)', 'rgba(255, 65, 54, 0.5)', 'rgba(207, 114, 255, 0.5)', 'rgba(127, 96, 0, 0.5)', 'rgba(20, 20, 20, 0.5)']
+    traces_of_weather = []
     for k in range(5):
         mean_accidents_of_fk = np.array(accidents_of_weather_stat[k]).mean()
         print "%d: %.3f" % (k, mean_accidents_of_fk)
         accidents_of_weather[0].append(k)
         accidents_of_weather[1].append(mean_accidents_of_fk)
+        trace_tmp = go.Box(
+            y=np.array(accidents_of_weather_stat[k]),
+            name="天气严重性:"+str(k),
+            boxpoints='all',
+            jitter=0.5,
+            whiskerwidth=0.2,
+            fillcolor=colors[k],
+            marker=dict(
+                size=4,
+            ),
+            line=dict(width=2),
+        )
+        traces_of_weather.append(trace_tmp)
+    layout_of_weather = go.Layout(
+        title='Box Plot of Accidents Counts With Different Weather Severity',
+        titlefont=dict(family='Arial, sans-serif', size=30, color='black'),
+        yaxis=dict(tickfont=dict(family='Arial, sans-serif', size=20, color='black')),
+        xaxis=dict(tickfont=dict(family='Arial, sans-serif', size=20, color='black')),
+        margin=dict(
+            l=80,
+            r=30,
+            b=80,
+            t=100,
+        ),
+        paper_bgcolor='rgb(243, 243, 243)',
+        plot_bgcolor='rgb(243, 243, 243)',
+        showlegend=False
+    )
+    plotly.offline.plot({"data" : traces_of_weather , "layout" : layout_of_weather},filename='weather_box_plot.html')
+
     print "weather Pearson Corr: %.4f, p-val: %.8f" % (pearsonr(accidents_of_weather[0], accidents_of_weather[1]))
     print "weather Spearman Corr: %.4f, p-val: %.8f" % (spearmanr(accidents_of_weather[0], accidents_of_weather[1]))
 
@@ -578,11 +672,41 @@ def get_all_data_for_analysis(dt_start, dt_end, time_interval, n, n_d, n_w, **pa
             accidents_of_air_stat[v["pm25"]].append(float(v["cnt"]))
     accidents_of_air = [[], []]
 
+    traces_of_air = []
     for k in xrange(0, 500, 100):
         mean_accidents_of_fk = np.array(accidents_of_air_stat[k]).mean()
         print "%d: %.3f" % (k, mean_accidents_of_fk)
         accidents_of_air[0].append(k)
         accidents_of_air[1].append(mean_accidents_of_fk)
+        trace_tmp = go.Box(
+            y=np.array(accidents_of_air_stat[k]),
+            name="PM2.5 Level:"+str(k),
+            boxpoints='all',
+            jitter=0.5,
+            whiskerwidth=0.2,
+            fillcolor=colors[int(k/100)],
+            marker=dict(
+                size=4,
+            ),
+            line=dict(width=2),
+        )
+        traces_of_air.append(trace_tmp)
+    layout_of_air = go.Layout(
+        title='Box Plot of Accidents Counts With Different PM2.5 Level',
+        titlefont=dict(family='Arial, sans-serif', size=30, color='black'),
+        yaxis=dict(tickfont=dict(family='Arial, sans-serif', size=20, color='black')),
+        xaxis=dict(tickfont=dict(family='Arial, sans-serif', size=20, color='black')),
+        margin=dict(
+            l=80,
+            r=30,
+            b=80,
+            t=100,
+        ),
+        paper_bgcolor='rgb(243, 243, 243)',
+        plot_bgcolor='rgb(243, 243, 243)',
+        showlegend=False
+    )
+    plotly.offline.plot({"data" : traces_of_air , "layout" : layout_of_air},filename='air_box_plot.html')
     print "pm25 Pearson Corr: %.4f, p-val: %.8f" % (pearsonr(accidents_of_air[0], accidents_of_air[1]))
     print "pm25 Spearman Corr: %.4f, p-val: %.8f" % (spearmanr(accidents_of_air[0], accidents_of_air[1]))
 
@@ -595,10 +719,41 @@ def get_all_data_for_analysis(dt_start, dt_end, time_interval, n, n_d, n_w, **pa
         else:
             accidents_of_time_seg_stat[time_segment].append(float(v["cnt"]))
     accidents_of_time_seg = [[], []]
-
+    time_slots = ["午夜 00:00-6:59","早高峰 7:00-8:59","早上工作时间 9:00-11:59","中午 12:00-13:59","下午 14:00-16:59", "晚高峰 17:00-19:59","晚间 20:00-23:59"]
+    traces_of_time_segment = []
     for k in range(7):
         mean_accidents_of_fk = np.array(accidents_of_time_seg_stat[k]).mean()
         print "%d: %.3f" % (k, mean_accidents_of_fk)
+        trace_tmp = go.Box(
+            y=np.array(accidents_of_time_seg_stat[k]),
+            name=time_slots[k],
+            boxpoints='all',
+            jitter=0.5,
+            whiskerwidth=0.2,
+            fillcolor=colors[k],
+            marker=dict(
+                size=4,
+            ),
+            line=dict(width=2),
+        )
+        traces_of_time_segment.append(trace_tmp)
+    layout_of_ts = go.Layout(
+        title='Box Plot of Accidents Counts With Different Time Segment',
+        titlefont=dict(family='Arial, sans-serif', size=30, color='black'),
+        yaxis=dict(tickfont=dict(family='Arial, sans-serif', size=20, color='black')),
+        xaxis=dict(tickfont=dict(family='Arial, sans-serif', size=18, color='black')),
+        margin=dict(
+            l=40,
+            r=30,
+            b=80,
+            t=100,
+        ),
+        paper_bgcolor='rgb(243, 243, 243)',
+        plot_bgcolor='rgb(243, 243, 243)',
+        showlegend=False
+    )
+    plotly.offline.plot({"data" : traces_of_time_segment , "layout" : layout_of_ts},filename='time_segment_box_plot.html')
+
     #     accidents_of_air[0].append(k)
     #     accidents_of_air[1].append(mean_accidents_of_fk)
     # print "Time Segment Pearson Corr: %.4f, p-val: %.8f" % (pearsonr(accidents_of_air[0], accidents_of_air[1]))
