@@ -3,8 +3,8 @@ import sys,os,math,pickle,datetime,xlrd,csv,json
 import numpy as np #导入Numpy
 from convert import gps2gcj,gcj2bd
 from class_for_shape import Vector2
-from util import color_all_rects_with_segments, date_new_format,second_new_format
-from models import Route_Info, Route_Speed
+from util import color_all_rects_with_segments, date_new_format,second_new_format,query_rect_segment_in
+from models import Route_Info, Route_Speed, Route_Related_Grid
 
 def unicode_csv_reader(gbk_data, dialect=csv.excel, **kwargs):
     csv_reader = csv.reader(gbk_data, dialect=dialect, **kwargs)
@@ -94,7 +94,13 @@ def get_all_routes(outjson_file_path, out_grid_file_path, **params):
         
         start_point = Vector2(float(route_info.start_lon), float(route_info.start_lat))
         end_point = Vector2(float(route_info.end_lon), float(route_info.end_lat))
-        points.append([start_point, end_point])
+        # points.append([start_point, end_point])
+        segment_overlap_with_ids = query_rect_segment_in(start_point, end_point, spatial_interval,d_lat,d_lng,n_lat,n_lng)
+        segment_overlap_with_ids_str = [str(sid) for sid in segment_overlap_with_ids]
+        str_of_ids = "" if len(segment_overlap_with_ids_str) == 0 else ",".join(segment_overlap_with_ids_str)
+        route_related_grid = Route_Related_Grid(route_id=route_id, grid_ids= str_of_ids)
+        route_related_grid.save()
+        print "finish route %d" % route_id
 
     json_str = json.dumps(routes_dict)
     with open(outjson_file_path,"w") as json_file:
@@ -102,4 +108,6 @@ def get_all_routes(outjson_file_path, out_grid_file_path, **params):
     print "json write success!"
     
     color_all_rects_with_segments(points, out_grid_file_path, spatial_interval,d_lat,d_lng,n_lat, n_lng)
+
+
 
