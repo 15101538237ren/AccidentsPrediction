@@ -102,6 +102,24 @@ class Region_Function(models.Model):
     spatial_interval = models.IntegerField('空间间隔/m')
     region_type = models.SmallIntegerField('区域类型',choices= REGION_TYPE)
     region_cnt_matrix = models.TextField('区域内容')
+class Route_Info(models.Model):
+    route_id = models.IntegerField('道路ID')
+    route_name = models.TextField('道路名称')
+    route_direction = models.TextField('道路方向')
+    start_name = models.TextField('起点路名称')
+    end_name = models.TextField('终点路名称')
+    route_length = models.IntegerField('道路长度')
+    start_lon = models.DecimalField('起点经度',max_digits=10,decimal_places=7)
+    start_lat = models.DecimalField('起点纬度',max_digits=10,decimal_places=7)
 
+    end_lon = models.DecimalField('终点经度',max_digits=10,decimal_places=7)
+    end_lat = models.DecimalField('终点纬度',max_digits=10,decimal_places=7)
 
+    route_subid = models.TextField('后继routeid')
+    route_preid = models.TextField('前驱routeid')
+
+class Route_Speed(models.Model):
+    route_id = models.IntegerField('道路ID')
+    create_time = models.DateTimeField('时间')
+    avg_speed = models.DecimalField('平均速度',max_digits=5, decimal_places=2)
 
