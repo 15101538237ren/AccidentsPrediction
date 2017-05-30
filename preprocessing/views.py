@@ -6,7 +6,7 @@ from import_data import *
 from util import *
 from AccidentsPrediction.settings import BASE_DIR
 from correlation_analysis import f_k_tau, surface_plot_of_f_k_tau, export_accidents_array_to_xlxs,calc_C_t,get_all_data_for_analysis
-from route_related import get_all_routes, import_all_route_info_to_db
+from route_related import get_all_routes, import_all_route_info_to_db, import_all_route_speed_to_db
 from class_for_shape import Rect, Vector2, CheckRectLine
 from classifier import *
 from imblearn.under_sampling import RandomUnderSampler
@@ -23,6 +23,10 @@ def visualize_roads(request):
 
     input_file_path = BASE_DIR+'/preprocessing/data/routeinfo.csv'
     outjson_file_path = BASE_DIR+'/static/json/roads.json'
+    dt_start = datetime.datetime.strptime("2016-08-01 00:00:00", second_format)
+    dt_end = datetime.datetime.strptime("2017-09-01 00:00:00",second_format)
+    base_dir = "/Users/Ren/Downloads/traffic_data_BJUT_Route_ID_BK"
+    # import_all_route_speed_to_db(base_dir,dt_start,dt_end)
     # import_all_route_info_to_db(input_file_path)
     get_all_routes(outjson_file_path, out_grid_file_path,**param_1000)
     return render_to_response('prep/roads_visualization.html', locals(), context_instance=RequestContext(request))

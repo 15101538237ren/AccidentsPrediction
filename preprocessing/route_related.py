@@ -3,8 +3,8 @@ import sys,os,math,pickle,datetime,xlrd,csv,json
 import numpy as np #导入Numpy
 from convert import gps2gcj,gcj2bd
 from class_for_shape import Vector2
-from util import color_all_rects_with_segments
-from models import Route_Info
+from util import color_all_rects_with_segments, date_new_format,second_new_format
+from models import Route_Info, Route_Speed
 
 def unicode_csv_reader(gbk_data, dialect=csv.excel, **kwargs):
     csv_reader = csv.reader(gbk_data, dialect=dialect, **kwargs)
@@ -12,7 +12,38 @@ def unicode_csv_reader(gbk_data, dialect=csv.excel, **kwargs):
     for row in csv_reader:
         yield [unicode(cell, 'utf-8') for cell in row]
 
+#导入所有的出租车速度数据
+def import_all_route_speed_to_db(input_file_dirpath, dt_start, dt_end):
+    route_infos = Route_Info.objects.all().order_by("route_id")
+    route_ids = [route_info.route_id for route_info in route_infos]
 
+    dt_list = []
+    dt_now = dt_start
+    while dt_now < dt_end:
+        dt_list.append(dt_now.strftime(date_new_format))
+        dt_now += datetime.timedelta(hours=24)
+
+    for route_id in route_ids:
+        if route_id >= 1869:
+            for dt in dt_list:
+                file_path =  input_file_dirpath +os.sep + "R"+str(route_id)+os.sep+"R"+str(route_id)+"_"+dt+".csv"
+                if os.path.exists(file_path):
+                    route_file = open(file_path,"r")
+                    reader = csv.reader(route_file)
+
+                    #跳过第一行的header
+                    next(reader, None)
+
+                    for row in reader:
+                        period = int(row[0])
+                        avg_speed = float(row[1])
+                        create_time = datetime.datetime.strptime(dt + " 00:00:00",second_new_format) + datetime.timedelta(minutes=5 * period)
+                        route_speed= Route_Speed(route_id=route_id, create_time=create_time, avg_speed=avg_speed)
+                        route_speed.save()
+
+        print "finish route: %d" % route_id
+
+#导入道路信息数据到数据库
 def import_all_route_info_to_db(input_file_path):
     reader = unicode_csv_reader(open(input_file_path))
     for route_id, route_name, route_direction, start_name, end_name, route_length, start_lon, start_lat, end_lon, end_lat, route_subid, route_preid, route_corid in reader:
@@ -47,8 +78,8 @@ def get_all_routes(outjson_file_path, out_grid_file_path, **params):
         #     continue
         # elif int(route_id) > 76:
         #     break
-        if cnt > 100:
-            break
+        # if cnt > 100:
+        #     break
         routes_dict[route_id] = {}
         routes_dict[route_id]["route_name"] = route_info.route_name
 

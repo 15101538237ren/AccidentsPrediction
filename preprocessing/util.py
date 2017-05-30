@@ -31,6 +31,8 @@ AFTERNOON_RUSH = 5
 NIGHT = 6
 second_format = "%Y-%m-%d %H:%M:%S"
 date_format = "%Y-%m-%d"
+date_new_format = "%Y%m%d"
+second_new_format = "%Y%m%d %H:%M:%S"
 minute_format = "%Y-%m-%d %H:%M"
 minute_format2 = "%Y%m%d_%H_%M"
 #节假日list: 2016-1-1 ~ 2017-2-28
@@ -913,8 +915,14 @@ def query_rect_segment_in(start_point, end_point, spatial_interval,d_lat,d_lng,n
     min_lng1 = min(start_point.X, end_point.X)
     max_lng1 = max(start_point.X, end_point.X)
 
+    min_lng2 = int(math.floor((min_lng1 - min_lng)/d_lng)) * d_lng + min_lng
+    max_lng2 = int(math.ceil((max_lng1 - min_lng)/d_lng)) * d_lng + min_lng
+
     min_lat1 = min(start_point.Y, end_point.Y)
     max_lat1 = max(start_point.Y, end_point.Y)
+
+    min_lat2 = int(math.floor((min_lat1 - min_lat)/d_lat)) * d_lat + min_lat
+    max_lat2 = int(math.ceil((max_lat1 - min_lat)/d_lat)) * d_lat + min_lat
 
     lng_lat_list = [[start_point.X, start_point.Y],[end_point.X, end_point.Y]]
 
@@ -930,7 +938,7 @@ def query_rect_segment_in(start_point, end_point, spatial_interval,d_lat,d_lng,n
         down_lat = rect.RightBottom.Y
 
         #夹在两个点中间,不相交
-        if ((min_lng1 < l_lng < max_lng1) and ( min_lng1 < r_lng < max_lng1 )) or ( (min_lat1 < up_lat < max_lat1) and (min_lat1 < down_lat < max_lat1)):
+        if (((min_lng1 < l_lng < max_lng1) and ( min_lng1 < r_lng < max_lng1 )) or ( (min_lat1 < up_lat < max_lat1) and (min_lat1 < down_lat < max_lat1))) and (l_lng >= min_lng2 and r_lng <= max_lng2 and up_lat <= max_lat2 and down_lat >= min_lat2):
             keys_to_detect.append(key)
 
     for key in keys_to_detect:
