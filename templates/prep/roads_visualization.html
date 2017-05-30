@@ -41,17 +41,17 @@
             ], {strokeColor: "blue", strokeWeight: 2, strokeOpacity: 0.8, strokeStyle: "solid"});
             map.addOverlay(polyline);
 
-{#            var smarker = new BMap.Marker(new BMap.Point(route_info["start_lon"], route_info["start_lat"]));  // 创建标注#}
-{#            map.addOverlay(smarker);              // 将标注添加到地图中#}
-{##}
-{#            var slabel = new BMap.Label(get_sroad_name(route_id),{offset:new BMap.Size(20,-10)});#}
-{#            smarker.setLabel(slabel);#}
-{##}
-{#            var emarker = new BMap.Marker(new BMap.Point(route_info["end_lon"], route_info["end_lat"]));  // 创建标注#}
-{#            map.addOverlay(emarker);              // 将标注添加到地图中#}
-{##}
-{#            var elabel = new BMap.Label(get_eroad_name(route_id),{offset:new BMap.Size(20,-10)});#}
-{#            emarker.setLabel(elabel);#}
+            var smarker = new BMap.Marker(new BMap.Point(route_info["start_lon"], route_info["start_lat"]));  // 创建标注
+            map.addOverlay(smarker);              // 将标注添加到地图中
+
+            var slabel = new BMap.Label(get_sroad_name(route_id),{offset:new BMap.Size(20,-10)});
+            smarker.setLabel(slabel);
+
+            var emarker = new BMap.Marker(new BMap.Point(route_info["end_lon"], route_info["end_lat"]));  // 创建标注
+            map.addOverlay(emarker);              // 将标注添加到地图中
+
+            var elabel = new BMap.Label(get_eroad_name(route_id),{offset:new BMap.Size(20,-10)});
+            emarker.setLabel(elabel);
         }
     });
 

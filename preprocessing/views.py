@@ -13,20 +13,17 @@ from imblearn.under_sampling import RandomUnderSampler
 from collections import Counter
 # Create your views here.
 def visualize_roads(request):
-
-    left_top = Vector2(0.0, 10.0)
-    right_bottom = Vector2(10.0, 0.0)
-
-    rect = Rect(left_top, right_bottom)
-
-    point_start = Vector2(5.0, 5.0)
-    point_end = Vector2(12.0, 12.0)
-
-    print "CheckRectLine: %d" % CheckRectLine(point_start, point_end, rect)
+    out_grid_file_path = BASE_DIR+'/static/js/grid.js'
+    param_1000 = {}
+    param_1000['d_len'] = 1000
+    param_1000['d_lat'] = 0.0084
+    param_1000['d_lng'] = 0.012
+    param_1000['n_lng'] = 29
+    param_1000['n_lat'] = 32
 
     input_file_path = BASE_DIR+'/preprocessing/data/routeinfo.csv'
     outjson_file_path = BASE_DIR+'/static/json/roads.json'
-    get_all_routes(input_file_path, outjson_file_path)
+    get_all_routes(input_file_path, outjson_file_path, out_grid_file_path,**param_1000)
     return render_to_response('prep/roads_visualization.html', locals(), context_instance=RequestContext(request))
 
 def import_data_to_db():

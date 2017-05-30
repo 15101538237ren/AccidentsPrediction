@@ -75,4 +75,4 @@ def CheckRectLineV(start, end, x0, y1, y2):
         else:
             return False
     y = (end.Y - start.Y) * (x0 - start.X) / (end.X - start.X) + start.Y
-    return ((y >= y1) and (y <= y2))
+    return ((y >= y2) and (y <= y1))

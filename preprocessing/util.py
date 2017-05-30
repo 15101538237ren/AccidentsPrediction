@@ -838,12 +838,75 @@ def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spati
                             #print "holiday len last saturday or sunday: %d" % len(last_monday_nw_arr)
                             break
     return tiaoxiu_accidents_for_train, holiday_accidents_for_train[0], holiday_accidents_for_train[1]
+def color_all_rects_with_segments(points, outfile_path, spatial_interval,d_lat,d_lng,n_lat, n_lng):
+    if spatial_interval == 500:
+        d_lat = 0.0042
+        d_lng = 0.006
+    else:
+        d_lat = 0.0084
+        d_lng = 0.012
+
+    n_lat_delta_origin = (max_lat - min_lat)/d_lat
+    n_lat_delta = int(math.ceil(n_lat_delta_origin)) + 1
+
+    n_lng_delta_origin = (max_lng - min_lng)/d_lng + 1
+    n_lng_delta = int(math.ceil(n_lng_delta_origin))
+
+    lng_coors = [min_lng + i * d_lng for i in range(n_lng_delta)]
+    lat_coors = [min_lat + i * d_lat for i in range(n_lat_delta)]
+    n_lng = len(lng_coors)-1
+    n_lat = len(lat_coors)-1
+
+    grid_colors = [0 for it in range(n_lat * n_lng)]
+
+    for item in points:
+        [start_point, end_point] = item
+        segment_overlap_with_ids = query_rect_segment_in(start_point, end_point, spatial_interval,d_lat,d_lng,n_lat,n_lng)
+        for id_tmp in segment_overlap_with_ids:
+            grid_colors[id_tmp] = 1
+
+    out_str_tmp = ""
+    for i_lat in range(len(lat_coors)-1):
+        for j_lng in range(len(lng_coors)-1):
+
+            id_tmp = j_lng * (len(lat_coors)-1) + i_lat
+            color = "red" if grid_colors[id_tmp] else ""
+
+            min_lng1 = lng_coors[j_lng]
+            max_lng1 = lng_coors[j_lng + 1]
+            min_lat1 = lat_coors[i_lat]
+            max_lat1 = lat_coors[i_lat + 1]
+
+            # center_lng = (min_lng1 + max_lng1)/2.0
+            # center_lat = (min_lat1 + max_lat1)/2.0
+
+            out_str ='''var rectangle_'''+str(id_tmp)+''' = new BMap.Polygon([
+                            new BMap.Point(''' + str(min_lng1) + ''',''' + str(min_lat1) + '''),
+                            new BMap.Point(''' + str(max_lng1) + ''',''' + str(min_lat1) + '''),
+                            new BMap.Point(''' + str(max_lng1) + ''',''' + str(max_lat1) + '''),
+                            new BMap.Point(''' + str(min_lng1) + ''',''' + str(max_lat1) + ''')
+                        ], {strokeColor:"red", strokeWeight:1, strokeOpacity:1,fillColor:"'''+str(color)+'''"});\n
+                        map.addOverlay(rectangle_'''+str(id_tmp)+''');\n'''
+                        # var point_'''+str(id_tmp)+''' = new BMap.Point(''' + str(center_lng) + ''',''' + str(center_lat) + ''');\n
+                        # var marker_'''+str(id_tmp)+''' = new BMap.Marker(point_'''+str(id_tmp)+''');\n
+                        # var label_'''+str(id_tmp)+''' = new BMap.Label("'''+str(id_tmp)+'''", {position: point_'''+str(id_tmp)+''',offset: new BMap.Size(20, -10)});\n
+                        # label_'''+str(id_tmp)+'''.setStyle({color: "black",fontSize: "12px",border: "0",backgroundColor: "0.0"});\n
+                        # marker_'''+str(id_tmp)+'''.setLabel(label_'''+str(id_tmp)+''');\n
+                        # map.addOverlay(marker_'''+str(id_tmp)+''');'''
+            out_str_tmp += out_str
+
+    output_file = open(outfile_path,"w")
+    output_file.write(out_str_tmp)
+    output_file.close()
+
+
 
 #输入起始点,终止点,返回一个候选的rect id列表
-def query_rect_segment_in(start_point, end_point, spatial_interval,output_file_path,d_lat,d_lng,n_lat,n_lng):
+def query_rect_segment_in(start_point, end_point, spatial_interval,d_lat,d_lng,n_lat,n_lng):
 
     segment_overlap_with_ids = []
     #获取所有矩形
+    output_file_path = ""
     rect_dict = get_all_rects_of_beijing(spatial_interval,output_file_path)
     size_of_dict = len(rect_dict)
 
@@ -890,12 +953,6 @@ def query_rect_segment_in(start_point, end_point, spatial_interval,output_file_p
 
     return segment_overlap_with_ids
 
-
-
-
-
-
-
 #输入空间间隔,返回北京市所有网格字典
 def get_all_rects_of_beijing(spatial_interval, output_file_path):
     if spatial_interval == 500:
@@ -921,7 +978,7 @@ def get_all_rects_of_beijing(spatial_interval, output_file_path):
 
 def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
     rects = {}
-    output_file = open(output_file_path,"w")
+    out_str_tmp = ""
     for i_lat in range(len(lat_coors)-1):
         for j_lng in range(len(lng_coors)-1):
 
@@ -944,9 +1001,13 @@ def generate_grid_for_beijing(lng_coors, lat_coors,output_file_path):
                             new BMap.Point(''' + str(min_lng1) + ''',''' + str(max_lat1) + ''')
                         ], {strokeColor:"red", strokeWeight:1, strokeOpacity:1,fillColor:''});\n
                         map.addOverlay(rectangle_'''+str(id)+''');\n'''
-            output_file.write(out_str)
-    output_file.close()
+            out_str_tmp += out_str
 
+
+    if output_file_path!="":
+        output_file = open(output_file_path,"w")
+        output_file.write(out_str_tmp)
+        output_file.close()
     return rects
 
 def generate_polylines_for_beijing(lng_coors, lat_coors,output_file_path,min_lat1,max_lat1,min_lng1,max_lng1):
