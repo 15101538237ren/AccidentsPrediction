@@ -78,8 +78,8 @@ def get_all_routes(outjson_file_path, out_grid_file_path, **params):
         #     continue
         # elif int(route_id) > 76:
         #     break
-        # if cnt > 100:
-        #     break
+        if cnt > 100:
+            break
         routes_dict[route_id] = {}
         routes_dict[route_id]["route_name"] = route_info.route_name
 
@@ -94,12 +94,12 @@ def get_all_routes(outjson_file_path, out_grid_file_path, **params):
         
         start_point = Vector2(float(route_info.start_lon), float(route_info.start_lat))
         end_point = Vector2(float(route_info.end_lon), float(route_info.end_lat))
-        # points.append([start_point, end_point])
-        segment_overlap_with_ids = query_rect_segment_in(start_point, end_point, spatial_interval,d_lat,d_lng,n_lat,n_lng)
-        segment_overlap_with_ids_str = [str(sid) for sid in segment_overlap_with_ids]
-        str_of_ids = "" if len(segment_overlap_with_ids_str) == 0 else ",".join(segment_overlap_with_ids_str)
-        route_related_grid = Route_Related_Grid(route_id=route_id, grid_ids= str_of_ids)
-        route_related_grid.save()
+        points.append([start_point, end_point])
+        # segment_overlap_with_ids = query_rect_segment_in(start_point, end_point, spatial_interval,d_lat,d_lng,n_lat,n_lng)
+        # segment_overlap_with_ids_str = [str(sid) for sid in segment_overlap_with_ids]
+        # str_of_ids = "" if len(segment_overlap_with_ids_str) == 0 else ",".join(segment_overlap_with_ids_str)
+        # route_related_grid = Route_Related_Grid(route_id=route_id, grid_ids= str_of_ids)
+        # route_related_grid.save()
         print "finish route %d" % route_id
 
     json_str = json.dumps(routes_dict)
