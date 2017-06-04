@@ -122,8 +122,8 @@ class Route_Speed(models.Model):
     route_id = models.IntegerField('道路ID')
     create_time = models.DateTimeField('时间')
     avg_speed = models.DecimalField('平均速度',max_digits=5, decimal_places=2)
-    valid = models.SmallIntegerField('零点是否有数据')
-    relative_speed = models.DecimalField('相对零点的速度',max_digits=5, decimal_places=2)
+    valid = models.SmallIntegerField('零点是否有数据',default=1)
+    relative_speed = models.DecimalField('相对零点的速度',max_digits=5, decimal_places=2,default=-1.0)
 class Route_Related_Grid(models.Model):
     route_id = models.IntegerField('道路ID')
     grid_ids = models.TextField('道路经过的网格ID列表')
