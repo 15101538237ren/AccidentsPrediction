@@ -83,6 +83,13 @@ class Accidents_Array(models.Model):
     is_weekend = models.BooleanField('是否周末')
     time_segment = models.SmallIntegerField('时间段', choices= TIME_SEG_TYPE)
 
+#城市网格的相对速度
+class Grid_Speed(models.Model):
+    time_interval = models.IntegerField('时间间隔/min')
+    spatial_interval = models.IntegerField('空间间隔/m')
+    create_time = models.DateTimeField('时间区间')
+    content = models.TextField('速度内容')
+
 class Region_Function(models.Model):
     REGION_TYPE = (
         (1,"交通设施"),
@@ -117,12 +124,12 @@ class Route_Info(models.Model):
 
     route_subid = models.TextField('后继routeid')
     route_preid = models.TextField('前驱routeid')
+    valid = models.SmallIntegerField('零点是否有数据',default=1)
 
 class Route_Speed(models.Model):
     route_id = models.IntegerField('道路ID')
     create_time = models.DateTimeField('时间')
     avg_speed = models.DecimalField('平均速度',max_digits=5, decimal_places=2)
-    valid = models.SmallIntegerField('零点是否有数据',default=1)
     relative_speed = models.DecimalField('相对零点的速度',max_digits=5, decimal_places=2,default=-1.0)
 class Route_Related_Grid(models.Model):
     route_id = models.IntegerField('道路ID')

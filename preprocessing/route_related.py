@@ -3,8 +3,8 @@ import sys,os,math,pickle,datetime,xlrd,csv,json
 import numpy as np #导入Numpy
 from convert import gps2gcj,gcj2bd
 from class_for_shape import Vector2
-from util import color_all_rects_with_segments, date_new_format,second_new_format,query_rect_segment_in
-from models import Route_Info, Route_Speed, Route_Related_Grid
+from util import color_all_rects_with_segments, date_new_format,second_new_format,query_rect_segment_in,second_format,get_conv_kernal_crespond_data
+from models import Route_Info, Route_Speed, Route_Related_Grid, Grid_Speed
 
 def unicode_csv_reader(gbk_data, dialect=csv.excel, **kwargs):
     csv_reader = csv.reader(gbk_data, dialect=dialect, **kwargs)
@@ -108,6 +108,112 @@ def get_all_routes(outjson_file_path, out_grid_file_path, **params):
     print "json write success!"
     
     color_all_rects_with_segments(points, out_grid_file_path, spatial_interval,d_lat,d_lng,n_lat, n_lng)
+#验证并归一化相对速度
+def validate_and_normalize_route():
+    max_route_id = 9856
+
+    for routeid in range(1983, max_route_id + 1):
+        print "start handling route: %d" % routeid
+        records = Route_Speed.objects.filter(route_id=routeid, create_time__hour=0, create_time__minute=0, create_time__second=0)
+        if len(records) == 0:
+            route_info = Route_Info.objects.filter(route_id=routeid)
+            #标记该道路为速度非法
+            route_of_invalid = route_info[0]
+            route_of_invalid.valid = 0
+            route_of_invalid.save()
+            print "route: %d is invalid" % routeid
+        else:
+            avg_speed = np.array([item.avg_speed for item in records]).mean()
+            records_for_modify = Route_Speed.objects.filter(route_id=routeid)
+            for record in records_for_modify:
+                record.relative_speed = record.avg_speed / avg_speed
+                record.save()
+        print "finished handling route: %d" % routeid
+
+#创建城市速度网格
+def create_grid_speed(outpkl_path,start_time, end_time, time_interval, spatial_interval, n_lat, n_lng):
+    w_shape = (1, 1, 3, 3) #f,c,hw,ww
+    w = np.array([1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0,]).reshape(w_shape)
+    b = np.array([0])
+    conv_param = {'stride': 1, 'pad': 1}
+    x_shape = (1, 1, n_lat, n_lng)
+
+    #生成date_time_list
+    now_time = start_time
+    dt_str_list = []
+    dt_list = []
+    while now_time < end_time:
+        tmp_now = now_time
+        dt_str = now_time.strftime(second_format)
+        dt_str_list.append(dt_str)
+        now_time += datetime.timedelta(minutes= time_interval)
+        dt_list.append([tmp_now, now_time])
+    #筛选合法的route_id
+    valid_route_ids = []
+    out_pickle_file = open(outpkl_path,"wb")
+    
+    print "start filter route_id"
+    first_filtered_ids = [route_info.route_id for route_info in Route_Info.objects.filter(valid=1)]
+
+    for rid in first_filtered_ids:
+        r_grid_ids = Route_Related_Grid.objects.filter(route_id=rid)[0]
+        if r_grid_ids.grid_ids != "":
+            valid_route_ids.append(rid)
+
+    pickle.dump(valid_route_ids, out_pickle_file,-1)
+
+    len_dt_str_list = len(dt_str_list)
 
 
+    for it in range(len_dt_str_list):
+        dt_str = dt_str_list[it]
+        print "start handling %s" % dt_str
 
+        dt_range = dt_list[it]
+        print dt_range
+
+        tmp_grid_speed_arr= [[] for i in range(n_lat * n_lng)]
+
+        route_speeds = Route_Speed.objects.filter(create_time__range=dt_range, route_id__in=valid_route_ids)        
+        
+        starttime = datetime.datetime.now()
+        for idx,route_speed in enumerate(route_speeds):
+            if idx % 1000 == 999:
+                endtime = datetime.datetime.now()
+                second_of_query = (endtime - starttime).seconds
+                print "route speed of %d/%d in %d seconds of %s" % (idx,len(route_speeds),second_of_query, dt_str)
+                starttime = endtime
+            relative_speed = route_speed.relative_speed
+            route_id = route_speed.route_id
+            related_grid = Route_Related_Grid.objects.filter(route_id=route_id)[0]
+            related_grid_ids = [int(item) for item in related_grid.grid_ids.split(",")]
+            for related_grid_id in related_grid_ids:
+                tmp_grid_speed_arr[related_grid_id].append(relative_speed)
+        print "finish route_speeds of %s" % dt_str
+        tmp_grid_speed_final= [0.0 for i in range(n_lat * n_lng)]
+        for it in range(n_lat * n_lng):
+            if len(tmp_grid_speed_arr[it]):
+                mean_of_speed = np.array(tmp_grid_speed_arr[it]).mean()
+                tmp_grid_speed_final[it] = mean_of_speed
+
+        data_content = np.array(tmp_grid_speed_final).reshape(x_shape)
+        out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
+
+        for w_i in range(n_lng):
+            for h_j in range(n_lat):
+                wh_id = w_i * n_lat + h_j
+                if math.fabs(tmp_grid_speed_final[wh_id]) < 1e-6:
+                    item_list = []
+                    for item in out_conv[0,0,h_j, w_i,:]:
+                        if math.fabs(item) > 1e-6:
+                            item_list.append(item)
+                    if len(item_list):
+                        tmp_grid_speed_final[wh_id] = np.array(item_list).mean()
+
+        content = ",".join([str(round(float(item), 3)) for item in tmp_grid_speed_final])
+        dt_now = datetime.datetime.strptime(dt_str,second_format)
+        grid_speed = Grid_Speed(time_interval=time_interval, spatial_interval=spatial_interval,content=content,
+                                create_time=dt_now)
+        grid_speed.save()
+        print "finish grid speed of %s" % dt_str
+    out_pickle_file.close()
