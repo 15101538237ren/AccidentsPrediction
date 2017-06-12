@@ -6,14 +6,13 @@ from import_data import *
 from util import *
 from AccidentsPrediction.settings import BASE_DIR
 from correlation_analysis import f_k_tau, surface_plot_of_f_k_tau, export_accidents_array_to_xlxs,calc_C_t,get_all_data_for_analysis
-from route_related import get_all_routes, import_all_route_info_to_db, import_all_route_speed_to_db,validate_and_normalize_route,create_grid_speed
+from route_related import get_all_routes, import_all_route_info_to_db, import_all_route_speed_to_db,validate_and_normalize_route,create_grid_speed, fix_zero_value_or_data_error_of
 from class_for_shape import Rect, Vector2, CheckRectLine
 from classifier import *
 from imblearn.under_sampling import RandomUnderSampler
 from collections import Counter
 # Create your views here.
 def visualize_roads(request):
-
     # validate_and_normalize_route()
     out_grid_file_path = BASE_DIR+'/static/js/grid.js'
     param_1000 = {}
@@ -33,10 +32,13 @@ def visualize_roads(request):
     n_lat = 32
     n_lng = 29
     outpkl_path =  BASE_DIR+'/preprocessing/data/grid_speed.pkl'
-    create_grid_speed(outpkl_path,dt_start, dt_end, time_interval, spatial_interval, n_lat, n_lng)
+    # create_grid_speed(outpkl_path,dt_start, dt_end, time_interval, spatial_interval, n_lat, n_lng)
     base_dir = "/Users/Ren/Downloads/traffic_data_BJUT_Route_ID_BK"
     # import_all_route_speed_to_db(base_dir,dt_start,dt_end)
     # import_all_route_info_to_db(input_file_path)
+    # dt_starts = [datetime.datetime.strptime("2016-08-10 05:00:00", second_format),datetime.datetime.strptime("2016-08-23 08:00:00", second_format)]
+    # dt_ends = [datetime.datetime.strptime("2016-08-10 23:00:00", second_format),datetime.datetime.strptime("2016-08-23 20:00:00", second_format)]
+    # fix_zero_value_or_data_error_of(dt_starts, dt_ends,time_interval,spatial_interval)
     # get_all_routes(outjson_file_path, out_grid_file_path,**param_1000)
     return render_to_response('prep/roads_visualization.html', locals(), context_instance=RequestContext(request))
 

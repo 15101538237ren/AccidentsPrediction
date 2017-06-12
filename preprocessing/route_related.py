@@ -78,8 +78,8 @@ def get_all_routes(outjson_file_path, out_grid_file_path, **params):
         #     continue
         # elif int(route_id) > 76:
         #     break
-        if cnt > 100:
-            break
+        # if cnt > 100:
+        #     break
         routes_dict[route_id] = {}
         routes_dict[route_id]["route_name"] = route_info.route_name
 
@@ -89,6 +89,7 @@ def get_all_routes(outjson_file_path, out_grid_file_path, **params):
 
         routes_dict[route_id]["end_lon"] = float(route_info.end_lon)
         routes_dict[route_id]["end_lat"] = float(route_info.end_lat)
+        routes_dict[route_id]["valid"] = int(route_info.valid)
         routes_dict[route_id]["end_name"] = route_info.end_name
         cnt += 1
         
@@ -107,7 +108,7 @@ def get_all_routes(outjson_file_path, out_grid_file_path, **params):
         json_file.write(json_str)
     print "json write success!"
     
-    color_all_rects_with_segments(points, out_grid_file_path, spatial_interval,d_lat,d_lng,n_lat, n_lng)
+    #color_all_rects_with_segments(points, out_grid_file_path, spatial_interval,d_lat,d_lng,n_lat, n_lng)
 #验证并归一化相对速度
 def validate_and_normalize_route():
     max_route_id = 9856
@@ -217,3 +218,72 @@ def create_grid_speed(outpkl_path,start_time, end_time, time_interval, spatial_i
         grid_speed.save()
         print "finish grid speed of %s" % dt_str
     out_pickle_file.close()
+
+#在dt_start和dt_end间的是有问题的数据
+def fix_zero_value_or_data_error_of(dt_starts, dt_ends, time_interval, spatial_interval):
+    print "start get all grid speed!"
+    all_grid_speeds = Grid_Speed.objects.filter(time_interval=time_interval, spatial_interval=spatial_interval).order_by("create_time")
+    length_of_data = len(all_grid_speeds)
+
+    print "finish get all grid speed!"
+    len_of_dt = len(dt_starts)
+
+    if length_of_data:
+        #是否修改过对应的速度数组
+        visited_arr = [0 for it in range(length_of_data)]
+        label_dt_arr = [0 for it in range(length_of_data)]
+        hour_of_data = [0 for it in range(length_of_data)]
+        length_of_grid = len(all_grid_speeds[0].content.split(","))
+        len_hour_of_day = 24
+        avg_speed_arr = []
+
+        for it in range(length_of_grid):
+            avg_speed_arr.append([])
+            for t_of_day in range(len_hour_of_day):
+                avg_speed_arr[it].append([])
+        speed_arr = []
+
+        for idx, grid_speed in enumerate(all_grid_speeds):
+            speeds_now = [float(item) for item in grid_speed.content.split(",")]
+            speed_arr.append(speeds_now)
+            hour_now = int(grid_speed.create_time.hour)
+            hour_of_data[idx] = hour_now
+            #不在日期范围内并且数不是0的可以加入到平均速度数组中
+            in_dt_range = False
+            for it in range(len_of_dt):
+                if dt_starts[it] <= grid_speed.create_time <= dt_ends[it]:
+                    in_dt_range = True
+                    label_dt_arr[idx] = 1
+                    break
+
+            if not in_dt_range:
+                for it in range(length_of_grid):
+                    data_of_speed = speeds_now[it]
+                    if math.fabs(data_of_speed) > 1e-6:
+                        avg_speed_arr[it][hour_now].append(data_of_speed)
+            print "finish 1st step of %s" % grid_speed.create_time.strftime(second_format)
+
+
+        mean_speed_arr = []
+
+        for it in range(length_of_grid):
+            mean_speed_arr.append([])
+            for time_of_day in range(len_hour_of_day):
+                if len(avg_speed_arr[it][time_of_day]):
+                    mean_speed = np.array(avg_speed_arr[it][time_of_day]).mean()
+                else:
+                    mean_speed = 0.0
+                mean_speed_arr[it].append(mean_speed)
+
+        for idx in range(length_of_data):
+            for it in range(length_of_grid):
+                data_tmp = speed_arr[idx][it]
+                if label_dt_arr[idx] or math.fabs(data_tmp) < 1e-6:
+                    speed_arr[idx][it] = mean_speed_arr[it][hour_of_data[idx]]
+                    visited_arr[idx] = 1
+
+            if visited_arr[idx]:
+                grid_speed = all_grid_speeds[idx]
+                grid_speed.content = ",".join([str(round(item,3)) for item in speed_arr[idx]])
+                print "%s has been edited" % grid_speed.create_time.strftime(second_format)
+                grid_speed.save()

@@ -34,11 +34,16 @@
         roads_dict = rtn_json;
         for (var route_id in roads_dict) {
             var route_info = roads_dict[route_id];
-
+            var valid = route_info["valid"];
+            var color = "red";
+{#            if (valid == 1)#}
+{#            {#}
+{#                color = "red";#}
+{#            }#}
             var polyline = new BMap.Polyline([
                 new BMap.Point(route_info["start_lon"], route_info["start_lat"]),
                 new BMap.Point(route_info["end_lon"], route_info["end_lat"])
-            ], {strokeColor: "blue", strokeWeight: 2, strokeOpacity: 0.8, strokeStyle: "solid"});
+            ], {strokeColor: color, strokeWeight: 2, strokeOpacity: 0.8, strokeStyle: "solid"});
             map.addOverlay(polyline);
 
 {#            var smarker = new BMap.Marker(new BMap.Point(route_info["start_lon"], route_info["start_lat"]));  // 创建标注#}
