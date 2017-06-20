@@ -468,7 +468,7 @@ def get_array_of_seq_of_function(zero_special_list, positive_list, zero_workday_
 
     return np.array(rtn_arr), np.array(rtn_lbl_arr), np.array(rtn_function_arr)
 
-def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
+def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
     #区域类型的list
     region_type_list = range(1, 13)
 
@@ -557,8 +557,10 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
 
             data_merge = data_last_week + data_yesterday
             data_merge = data_merge + data_last_hours
-
-            len_data_merge = len(data_merge)
+            if load_traffic_data:
+                len_data_merge = len(data_merge) + 1
+            else:
+                len_data_merge = len(data_merge)
             data_shape = (height * width, len_data_merge)
             # data_shape = (height * width, len_data_merge, data_dim)
             data_for_now = np.zeros(data_shape)
@@ -575,20 +577,22 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
                 # data_for_now[:, idx, 0] = data_content
 
                 # data_content = data_content.reshape(x_shape)
-                out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
+                # out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
 
-                # data_for_now[:, idx] = data_content
+                data_for_now[:, idx] = data_content
                 # for w_i in range(width):
                 #     for h_j in range(height):
                 #         wh_id = w_i * height + h_j
                 #         data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
-
                 # data_for_now[:, idx, conv_dim: data_dim] = extra_data
             # data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
 
             # print "data_for_now shape: ",
             # print data_for_now.shape
-
+            if load_traffic_data:
+                grid_speed_nows = Grid_Speed.objects.filter(time_interval=time_interval, spatial_interval=spatial_interval, create_time=dt_now)
+                grid_speed_now = [float(item) for item in grid_speed_nows[0].content.split(",")]
+                data_for_now[:, -1] = grid_speed_now
             data_arr =[]
             for item in data_labels.content.split(","):
                 # if int(item) > 1:
@@ -639,33 +643,33 @@ def generate_data_for_train_and_test(out_pickle_file_path, dt_start, dt_end, tim
     print "pre total: %d, pos: %d, rate %.3f" % (total_data_cnt, cnt_positive, float(cnt_positive)/float(total_data_cnt))
     print "cnt_positive: %.3f, cnt_zero_workday: %.3f, cnt_zero_special: %.3f" % (float(cnt_positive)/float(total_data_cnt), float(cnt_zero_workday)/float(total_data_cnt), float(cnt_zero_special)/float(total_data_cnt))
 
-    # temp_positive_data_list = []
-    # temp_positive_label_list = []
+    temp_positive_data_list = []
+    temp_positive_label_list = []
     # temp_postive_addition_data = []
     # temp_positive_function_list = []
     #
-    # temp_zero_special_data_list = []
-    # temp_zero_special_label_list = []
+    temp_zero_special_data_list = []
+    temp_zero_special_label_list = []
     # temp_zero_special_addition_data = []
     # temp_zero_special_function_list=[]
-    # temp_positive_data_list += positive_data_list
-    # temp_positive_label_list += positive_label_list
+    temp_positive_data_list += positive_data_list
+    temp_positive_label_list += positive_label_list
     # temp_postive_addition_data += positive_addition_data
     # # temp_positive_function_list += positive_function_list
     #
-    # temp_zero_special_data_list += zero_special_data_list
-    # temp_zero_special_label_list += zero_special_label_list
+    temp_zero_special_data_list += zero_special_data_list
+    temp_zero_special_label_list += zero_special_label_list
     # temp_zero_special_addition_data += zero_special_addition_data
     # # temp_zero_special_function_list += zero_special_function_list
-    # tot_positive_len = len(temp_positive_label_list)
-    # tot_special_len = int(len(temp_zero_special_label_list) / 4)
-    # tot_zero_workday_len = tot_positive_len - tot_special_len
+    tot_positive_len = len(temp_positive_label_list)
+    tot_special_len = int(len(temp_zero_special_label_list) / 4)
+    tot_zero_workday_len = tot_positive_len - tot_special_len
     #
-    # sub_total = tot_positive_len + tot_special_len + tot_zero_workday_len
-    # print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_positive_len, float(tot_positive_len)/float(sub_total))
+    sub_total = tot_positive_len + tot_special_len + tot_zero_workday_len
+    print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_positive_len, float(tot_positive_len)/float(sub_total))
 
-    # all_data_list, all_label_list = get_array_of_seq(temp_zero_special_data_list[0: tot_special_len], temp_positive_data_list[0: tot_positive_len], zero_workday_data_list[0:tot_zero_workday_len], temp_zero_special_label_list[0: tot_special_len], temp_positive_label_list[0:tot_positive_len], zero_workday_label_list[0:tot_zero_workday_len])
-    all_data_list, all_label_list = get_array_of_seq(zero_special_data_list, positive_data_list, zero_workday_data_list, zero_special_label_list, positive_label_list, zero_workday_label_list)
+    all_data_list, all_label_list = get_array_of_seq(temp_zero_special_data_list[0: tot_special_len], temp_positive_data_list[0: tot_positive_len], zero_workday_data_list[0:tot_zero_workday_len], temp_zero_special_label_list[0: tot_special_len], temp_positive_label_list[0:tot_positive_len], zero_workday_label_list[0:tot_zero_workday_len])
+    # all_data_list, all_label_list = get_array_of_seq(zero_special_data_list, positive_data_list, zero_workday_data_list, zero_special_label_list, positive_label_list, zero_workday_label_list)
     print "finish get all data"
     return [all_data_list,all_label_list]
 

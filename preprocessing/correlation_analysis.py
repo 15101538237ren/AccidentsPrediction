@@ -219,7 +219,7 @@ def surface_plot_of_f_k_tau(out_csv_path, rtn_val_list,load = False):
     ]
 
     layout = go.Layout(
-        title='Correlation of Accidents with Distance(/km) and Time-Delay(/10 min)',
+        title='Correlation of Accidents with Distance(/km) and Time-Delay(/1 hour)',
         titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
         # scene=dict(
         #     xaxis=dict(
@@ -246,7 +246,7 @@ def surface_plot_of_f_k_tau(out_csv_path, rtn_val_list,load = False):
 
         xaxis=dict(
                 title=r'Time-Delay', titlefont=dict(family='Arial, sans-serif', size=20, color='black'),
-                range=[1, max_tau],tick0=0, ticks='outside', dtick=2, ticklen=int(math.ceil(max_tau/4)), tickwidth=3,
+                range=[1, max_tau],tick0=0, ticks='outside', dtick=12, ticklen=int(math.ceil(max_tau/12)), tickwidth=3,
                 tickcolor='#000', tickfont=dict(family='Arial, sans-serif', size=15, color='black'),
                 zerolinecolor='#000000', zerolinewidth=3,
 
