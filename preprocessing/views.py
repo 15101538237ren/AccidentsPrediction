@@ -101,15 +101,15 @@ def index(request):
 
     #get_work_day_data(work_day_bounds,time_interval=60, spatial_interval=1000)
     # get_holiday_and_tiaoxiu_data_for_train(time_interval=30, spatial_interval=1000, n = 5, n_d = 3, n_w = 4)
-    dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
-    # dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
+    # dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
+    dt_start = datetime.datetime.strptime("2016-08-08 00:00:00", second_format)
     # dt_end = datetime.datetime.strptime("2016-01-01 23:59:59",second_format)
-    # dt_end = datetime.datetime.strptime("2016-03-31 00:00:00",second_format)
+    dt_end = datetime.datetime.strptime("2016-09-01 00:00:00",second_format)
     # dt_end = datetime.datetime.strptime("2016-01-02 00:00:00",second_format)
-    dt_end = datetime.datetime.strptime("2017-02-28 23:59:59",second_format)
+    # dt_end = datetime.datetime.strptime("2017-02-28 23:59:59",second_format)
     outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
-    n = 12
-    n_d = n_w = 5
+    n = 4
+    n_d = n_w = 3
     # get_all_data_for_analysis(dt_start,dt_end,time_interval=time_interval,n=n,n_d=n_d,n_w=n_w,**param_1000)
 
     out_csv_path = BASE_DIR+'/preprocessing/data/surface_'+str(time_interval)+'min.csv'
@@ -135,76 +135,40 @@ def index(request):
 
     print "base_dir: %s" % BASE_DIR
 
-    load_traffic_data = False
+    load_traffic_data = True
     if load_traffic_data:
         added = 1
     else:
         added = 0
-    n_time_steps = n + (n_d + n_w ) * 2 + 2 + added
+    n_time_steps = n + (n_d + n_w ) * 2 + 2
     split_ratio = 0.7
-    data_dim = 1
+    data_dim = 1 + added + 4
     class_weight = {0: 1, 1: 1}
     save_path = BASE_DIR+'/preprocessing/data/'
 
     [all_data_list, all_label_list] = generate_data_for_train_and_test(load_traffic_data,outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **param_1000)
-    #
-    # print('Original dataset shape {}'.format(Counter(all_label_list)))
-    #
+
+    # train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
     train_and_test_model_with_gru(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio,class_weight=class_weight)
-    train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-    train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-    train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-    train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps,all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
 
-    # rus = RandomUnderSampler(random_state=42)
     #
-    # X_res, y_res = rus.fit_sample(all_data_list, all_label_list)
-    # print('Resampled dataset shape {}'.format(Counter(y_res)))
-    # train_and_test_model_with_gru(data_dim,n_time_steps, X_res,y_res, split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_lstm(data_dim,n_time_steps,X_res,y_res, split_ratio=split_ratio,class_weight=class_weight)
-
-
-    # all_data_list_flatten = [item.flatten() for item in all_data_list]
+    # all_data_list_flatten = np.array([item.flatten() for item in all_data_list])
     # all_data_list = all_data_list_flatten
 
-    # no_of_pca = 1
-    # pca = PCA(n_components=n_time_steps)
-    # all_data_list = pca.fit_transform(all_data_list_flatten)
-    #
+    # train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+
+    # train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+    # train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps,all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+
     # train_and_test_model_with_lda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
     # train_and_test_model_with_qda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
     # train_and_test_model_with_logistic_regression(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio,class_weight=class_weight)
-
     # train_and_test_model_with_ada_boost(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-    # train_and_test_model_with_bagging(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
     # train_and_test_model_with_random_forest(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
     # train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio)
     # train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
     # train_and_test_model_with_decision_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
     # train_and_test_model_with_svm(data_dim,n_time_steps, all_data_list,all_label_list,save_path,  split_ratio=split_ratio,class_weight=class_weight)
-    #
-    # train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio,class_weight=class_weight)
-    #
-    # # print'Resampled of Traditional methods'
-    # X_res, y_res = rus.fit_sample(all_data_list, all_label_list)
-    #
-    # train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, X_res,y_res, split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_ada_boost(data_dim,n_time_steps,  X_res,y_res,  split_ratio=split_ratio)
-    # # train_and_test_model_with_bagging(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-    # train_and_test_model_with_random_forest(data_dim,n_time_steps,  X_res,y_res,  split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, X_res,y_res,  split_ratio=split_ratio)
-    # # train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_decision_tree(data_dim,n_time_steps, X_res,y_res,  split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_svm(data_dim,n_time_steps, X_res,y_res, split_ratio=split_ratio,class_weight=class_weight)
-    #
-    # train_and_test_model_with_dense_network(data_dim,n_time_steps, X_res,y_res, split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps, X_res,y_res,  split_ratio=split_ratio,class_weight=class_weight)
-
-
-
-    # train_and_test_model_with_rbf_nu_svm(data_dim,n_time_steps, all_data_list,all_label_list, split_ratio=split_ratio)
-
 
 
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))

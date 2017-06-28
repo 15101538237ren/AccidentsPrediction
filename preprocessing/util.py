@@ -483,7 +483,11 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
     conv_dim = 9
     # data_dim = 4 + conv_dim
 
-    data_dim =1 # 5 + conv_dim
+    if load_traffic_data:
+        added = 1
+    else:
+        added = 0
+    data_dim = 1 + added + 4
     normalize_data = True
     #卷积操作相关
 
@@ -557,42 +561,41 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
 
             data_merge = data_last_week + data_yesterday
             data_merge = data_merge + data_last_hours
-            if load_traffic_data:
-                len_data_merge = len(data_merge) + 1
-            else:
-                len_data_merge = len(data_merge)
-            data_shape = (height * width, len_data_merge)
-            # data_shape = (height * width, len_data_merge, data_dim)
+            len_data_merge = len(data_merge)
+            # data_shape = (height * width, len_data_merge)
+            data_shape = (height * width, len_data_merge, data_dim)
             data_for_now = np.zeros(data_shape)
 
             for idx, data_i in enumerate(data_merge):
                 # if normalize_data:
-                #     extra_data = [float(data_i.time_segment)/6.0,float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0, int(data_i.is_weekend)]
+                extra_data = [float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0, int(data_i.is_weekend)]
                 # else:
                 #     extra_data = [float(data_i.time_segment)]#float(data_i.weather_severity), float(data_i.pm25), float(data_i.time_segment)]#, int(data_i.is_weekend)]
 
                 # data_for_now[:, idx, 0] = [it for it in range(height * width)]
                 # data_for_now[:, idx, 1] = out_conv
                 data_content = np.array([int(item) for item in data_i.content.split(",")])
-                # data_for_now[:, idx, 0] = data_content
+                data_for_now[:, idx, 0] = data_content
 
                 # data_content = data_content.reshape(x_shape)
                 # out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
+                # data_for_now[:, idx] = data_content
 
-                data_for_now[:, idx] = data_content
                 # for w_i in range(width):
                 #     for h_j in range(height):
                 #         wh_id = w_i * height + h_j
                 #         data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
-                # data_for_now[:, idx, conv_dim: data_dim] = extra_data
+                data_for_now[:, idx, 1: data_dim - added] = extra_data
+                if load_traffic_data:
+                    grid_speed_nows = Grid_Speed.objects.filter(time_interval=time_interval, spatial_interval=spatial_interval, create_time=data_i.create_time)
+                    if len(grid_speed_nows):
+                        grid_speed_now = [float(item) for item in grid_speed_nows[0].content.split(",")]
+                        data_for_now[:,idx, -1] = grid_speed_now
             # data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
 
             # print "data_for_now shape: ",
             # print data_for_now.shape
-            if load_traffic_data:
-                grid_speed_nows = Grid_Speed.objects.filter(time_interval=time_interval, spatial_interval=spatial_interval, create_time=dt_now)
-                grid_speed_now = [float(item) for item in grid_speed_nows[0].content.split(",")]
-                data_for_now[:, -1] = grid_speed_now
+
             data_arr =[]
             for item in data_labels.content.split(","):
                 # if int(item) > 1:
@@ -663,7 +666,7 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
     # # temp_zero_special_function_list += zero_special_function_list
     tot_positive_len = len(temp_positive_label_list)
     tot_special_len = int(len(temp_zero_special_label_list) / 4)
-    tot_zero_workday_len = tot_positive_len - tot_special_len
+    tot_zero_workday_len = int(tot_positive_len - tot_special_len)
     #
     sub_total = tot_positive_len + tot_special_len + tot_zero_workday_len
     print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_positive_len, float(tot_positive_len)/float(sub_total))
