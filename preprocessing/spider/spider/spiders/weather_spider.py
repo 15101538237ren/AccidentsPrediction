@@ -2,7 +2,7 @@
 import scrapy,datetime,calendar,re,urllib,os
 from scrapy.selector import HtmlXPathSelector
 
-wrt_file_path1 = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/weather.csv'
+wrt_file_path1 = '/Users/Ren/PycharmProjects/AccidentsPrediction/preprocessing/data/guiyang_weather.csv'
 
 def add_months(dt,months):
     month = dt.month - 1 + months
@@ -18,10 +18,10 @@ class WeatherSpider(scrapy.Spider):
     start_urls = []
     start_date = datetime.date(year = 2016, month=1,day=1)
 
-    for inc in range(14):
+    for inc in range(18):
         date_now = add_months(start_date, inc)
         date_str = date_now.strftime("%Y%m")
-        url_str = 'http://lishi.tianqi.com/beijing/'+date_str+'.html'
+        url_str = 'http://lishi.tianqi.com/guiyang1/'+date_str+'.html'
         start_urls.append(url_str)
     if os.path.exists(wrt_file_path1):
        os.remove(wrt_file_path1)
@@ -30,7 +30,7 @@ class WeatherSpider(scrapy.Spider):
        hxs = HtmlXPathSelector(response)#创建查询对象
        out_file = open(wrt_file_path1,"a")
        # 如果url是 http://www.xiaohuar.com/list-1-\d+.html
-       if re.match('http://lishi.tianqi.com/beijing/\d+.html', response.url): #如果url能够匹配到需要爬取的url，即本站url
+       if re.match('http://lishi.tianqi.com/guiyang1/\d+.html', response.url): #如果url能够匹配到需要爬取的url，即本站url
            base_xpath = '//div[@class="tqtongji2"]/ul'
            items = hxs.xpath(base_xpath) #select中填写查询目标，按scrapy查询语法书写
            item_len = len(items)
@@ -40,7 +40,8 @@ class WeatherSpider(scrapy.Spider):
                ht = hxs.xpath(base_xpath +'[' + str(i) +']/li[2]/text()').extract()[0]
                lt = hxs.xpath(base_xpath +'[' + str(i) +']/li[3]/text()').extract()[0]
                weather = hxs.xpath(base_xpath +'[' + str(i) +']/li[4]/text()').extract()[0]
+               wind_direction = hxs.xpath(base_xpath +'[' + str(i) +']/li[5]/text()').extract()[0]
                wind_scale = hxs.xpath(base_xpath +'[' + str(i) +']/li[6]/text()').extract()[0]
-               out_str = u"%s,%s,%s,%s,%s\n" % (dt,ht,lt,weather,wind_scale)
+               out_str = u"%s,%s,%s,%s,%s,%s\n" % (dt,ht,lt,weather,wind_direction,wind_scale)
                out_file.write(out_str.encode('utf-8'))
        out_file.close()

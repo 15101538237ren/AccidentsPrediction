@@ -27,17 +27,17 @@ def visualize_roads(request):
     dt_start = datetime.datetime.strptime("2016-08-01 00:00:00", second_format)
     dt_end = datetime.datetime.strptime("2016-09-01 00:00:00",second_format)
     # dt_end = datetime.datetime.strptime("2017-09-01 00:00:00",second_format)
-    time_interval = 60
-    spatial_interval = 1000
-    n_lat = 32
-    n_lng = 29
+    time_interval = 30
+    spatial_interval = 500
+    n_lat = 32 * 2
+    n_lng = 29 * 2
     outpkl_path =  BASE_DIR+'/preprocessing/data/grid_speed.pkl'
     # create_grid_speed(outpkl_path,dt_start, dt_end, time_interval, spatial_interval, n_lat, n_lng)
     base_dir = "/Users/Ren/Downloads/traffic_data_BJUT_Route_ID_BK"
     # import_all_route_speed_to_db(base_dir,dt_start,dt_end)
     # import_all_route_info_to_db(input_file_path)
-    # dt_starts = [datetime.datetime.strptime("2016-08-10 05:00:00", second_format),datetime.datetime.strptime("2016-08-23 08:00:00", second_format)]
-    # dt_ends = [datetime.datetime.strptime("2016-08-10 23:00:00", second_format),datetime.datetime.strptime("2016-08-23 20:00:00", second_format)]
+    dt_starts = [datetime.datetime.strptime("2016-08-01 21:30:00", second_format),datetime.datetime.strptime("2016-08-02 12:00:00", second_format),datetime.datetime.strptime("2016-08-10 04:00:00", second_format),datetime.datetime.strptime("2016-08-11 11:30:00", second_format),datetime.datetime.strptime("2016-08-14 20:00:00", second_format),datetime.datetime.strptime("2016-08-17 17:00:00", second_format),datetime.datetime.strptime("2016-08-23 06:30:00", second_format)]
+    dt_ends = [datetime.datetime.strptime("2016-08-02 00:00:00", second_format),datetime.datetime.strptime("2016-08-02 19:00:00", second_format),datetime.datetime.strptime("2016-08-11 00:30:00", second_format),datetime.datetime.strptime("2016-08-11 14:30:00", second_format),datetime.datetime.strptime("2016-08-14 23:00:00", second_format),datetime.datetime.strptime("2016-08-18 00:00:00", second_format),datetime.datetime.strptime("2016-08-24 00:00:00", second_format)]
     # fix_zero_value_or_data_error_of(dt_starts, dt_ends,time_interval,spatial_interval)
     # get_all_routes(outjson_file_path, out_grid_file_path,**param_1000)
     return render_to_response('prep/roads_visualization.html', locals(), context_instance=RequestContext(request))
@@ -89,12 +89,12 @@ def index(request):
     param_1000['n_lat'] = 32
 
 
-    time_interval = 60
-    spatial_interval = 1000
-    max_k = 20
-    max_tau = 8 * 24 * int(60/time_interval)
+    # max_k = 20
+    # max_tau = 8 * 24 * int(60/time_interval)
 
     # label_all_accidents(outpkl_file_path, time_interval, **param_1000)
+    #
+    # label_all_accidents(outpkl_file_path, time_interval, **param_500)
     # label_all_function_regions(input_file_list,**param_1000)
 
     #return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
@@ -107,16 +107,16 @@ def index(request):
     dt_end = datetime.datetime.strptime("2016-09-01 00:00:00",second_format)
     # dt_end = datetime.datetime.strptime("2016-01-02 00:00:00",second_format)
     # dt_end = datetime.datetime.strptime("2017-02-28 23:59:59",second_format)
-    outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
+    # outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
     n = 4
     n_d = n_w = 3
     # get_all_data_for_analysis(dt_start,dt_end,time_interval=time_interval,n=n,n_d=n_d,n_w=n_w,**param_1000)
 
-    out_csv_path = BASE_DIR+'/preprocessing/data/surface_'+str(time_interval)+'min.csv'
-
-
-    outpkl_ct_path = BASE_DIR+'/preprocessing/data/correlation_of_time_delay_'+str(time_interval)+'min.pkl'
-    export_xlxs_path = BASE_DIR+'/preprocessing/data/accidents_of_timeinterval_'+str(time_interval)+'min.xls'
+    # out_csv_path = BASE_DIR+'/preprocessing/data/surface_'+str(time_interval)+'min.csv'
+    #
+    #
+    # outpkl_ct_path = BASE_DIR+'/preprocessing/data/correlation_of_time_delay_'+str(time_interval)+'min.pkl'
+    # export_xlxs_path = BASE_DIR+'/preprocessing/data/accidents_of_timeinterval_'+str(time_interval)+'min.xls'
     # rtn_dict = calc_C_t(outpkl_ct_path,dt_start,dt_end, time_interval, spatial_interval,param_1000['n_lat'], param_1000['n_lng'], max_k)
 
     #export_accidents_array_to_xlxs(dt_start,dt_end,time_interval,spatial_interval,param_1000['n_lng'],param_1000['n_lat'],export_xlxs_path)
@@ -145,30 +145,36 @@ def index(request):
     data_dim = 1 + added + 4
     class_weight = {0: 1, 1: 1}
     save_path = BASE_DIR+'/preprocessing/data/'
+    time_intervals = [60, 45, 30, 15]
+    spatial_intervals = [param_1000,param_500]
+    for time_interval in time_intervals:
+        for spatial_interval in spatial_intervals:
+            [all_data_list, all_label_list] = generate_data_for_train_and_test(load_traffic_data,outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **spatial_interval)
+            #
+            # train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_gru(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio,class_weight=class_weight)
 
-    [all_data_list, all_label_list] = generate_data_for_train_and_test(load_traffic_data,outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **param_1000)
+            #
+            all_data_list_flatten = np.array([item.flatten() for item in all_data_list])
+            all_data_list = all_data_list_flatten
 
-    # train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-    train_and_test_model_with_gru(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
 
-    #
-    # all_data_list_flatten = np.array([item.flatten() for item in all_data_list])
-    # all_data_list = all_data_list_flatten
-
-    # train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-
-    # train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps,all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-
-    # train_and_test_model_with_lda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-    # train_and_test_model_with_qda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-    # train_and_test_model_with_logistic_regression(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_ada_boost(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-    # train_and_test_model_with_random_forest(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio)
-    # train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_decision_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-    # train_and_test_model_with_svm(data_dim,n_time_steps, all_data_list,all_label_list,save_path,  split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps,all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            
+            print "n,n_d,n_w:%d%d%d,data_dim:%d\ttime_interval:%d\tspatial_interval:%d" %(n,n_d,n_w,data_dim,time_interval,spatial_interval['d_len'])
+            train_and_test_model_with_logistic_regression(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio,class_weight=class_weight)
+            train_and_test_model_with_lda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
+            train_and_test_model_with_qda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
+            train_and_test_model_with_ada_boost(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
+            train_and_test_model_with_random_forest(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio)
+            train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            train_and_test_model_with_decision_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            train_and_test_model_with_svm(data_dim,n_time_steps, all_data_list,all_label_list,save_path,  split_ratio=split_ratio,class_weight=class_weight)
+            del all_data_list
+            del all_label_list
 
 
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
@@ -179,7 +185,7 @@ def grid(request):
     return render_to_response('prep/grid.html', locals(), context_instance=RequestContext(request))
 #按照网格,用不同颜色显示每个网格的事故量,并用label标出事故量
 def grid_timeline(request):
-    time_interval = 60
+    time_interval = 30
     sep = 1000
     if request.method == 'GET':
         start_time = datetime.datetime.strptime("2016-01-01 00:00:00",second_format)
@@ -195,7 +201,7 @@ def grid_timeline(request):
 
         out_data_file = BASE_DIR+'/static/js/grid_timeline.js'
 
-        min_lat,max_lat,min_lng,max_lng = get_grid_timeline(datetime_query,out_data_file, sep= sep,time_interval = 60)
+        min_lat,max_lat,min_lng,max_lng = get_grid_timeline(datetime_query,out_data_file, sep= sep,time_interval = time_interval)
         addr = '/static/js/grid_timeline.js'
         response_dict = {}
         response_dict["code"] = 0
@@ -204,7 +210,7 @@ def grid_timeline(request):
 def timeline(request):
     start_time = datetime.datetime.strptime("2016-01-01 00:00:00",second_format)
     end_time = datetime.datetime.strptime("2017-03-01 00:00:00",second_format)
-    time_interval = 60
+    time_interval = 30
     dt_list = get_all_dt_in_call_incidences_db(start_time,end_time,time_interval=time_interval)
     dt_start = start_time.strftime(second_format)
     slider_cnts = len(dt_list)
@@ -213,7 +219,7 @@ def timeline(request):
 #获取指定时间的事故情况
 @ajax_required
 def query_status(request):
-    time_interval = 60
+    time_interval = 30
     datetime_query = request.POST.get("query_dt","2016-01-01 00:00:00")
     from_dt = datetime.datetime.strptime(datetime_query,second_format)
     end_dt = from_dt + datetime.timedelta(minutes=time_interval)

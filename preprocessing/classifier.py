@@ -24,7 +24,7 @@ from sklearn.svm import LinearSVC,NuSVC
 from sklearn.decomposition import PCA
 from imblearn.under_sampling import RandomUnderSampler
 from collections import Counter
-from sklearn.metrics import roc_curve, auc, mean_absolute_error, mean_squared_error
+from sklearn.metrics import roc_curve, auc, mean_absolute_error, mean_squared_error,precision_recall_fscore_support
 from sklearn.model_selection import StratifiedKFold
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -367,7 +367,6 @@ class Plot_ROC(keras.callbacks.Callback):
         plt.savefig(self.fig_path+"_"+str(epoch)+".pdf")
 
 def train_and_plot_roc(classifier, classifier_name, save_path, X, y):
-
     cv = StratifiedKFold(n_splits=6)
     mean_tpr = 0.0
     mean_fpr = np.linspace(0, 1, 100)
@@ -381,18 +380,31 @@ def train_and_plot_roc(classifier, classifier_name, save_path, X, y):
     # mean_mape = []
     mean_mse = []
     mean_rmse = []
+    mean_precision = []
+    mean_recall = []
+    mean_fscore = []
+
     for (train, test), color in zip(cv.split(X, y), colors):
 
         classifier.fit(X[train], y[train])
-        print "finish fit"
+        # print "finish fit"
         if classifier_name == "svm":
             probas_ = classifier.predict(X[test])
             pred = probas_
+            pred_class = pred
         else:
             probas_ = classifier.predict_proba(X[test])
             pred = probas_[:, 1]
+            pred_class = classifier.predict(X[test])
         # Compute ROC curve and area the curve
         fpr, tpr, thresholds = roc_curve(y[test], pred)
+
+        (precision,recall,fbeta_score,support)=precision_recall_fscore_support(y[test], pred_class, pos_label =1, average='binary')
+
+        mean_precision.append(precision)
+        mean_recall.append(recall)
+        mean_fscore.append(fbeta_score)
+
         t_mae = mean_absolute_error(y[test], pred)
         mean_mae.append(t_mae)
         # t_mape = mean_absolute_percentage_error(y[test], pred)
@@ -403,10 +415,10 @@ def train_and_plot_roc(classifier, classifier_name, save_path, X, y):
         mean_rmse.append(t_rmse)
 
 
-        print "MAE of " + classifier_name + " of test " + str(i) +" : " + str(t_mae)
+        # print "MAE of " + classifier_name + " of test " + str(i) +" : " + str(t_mae)
         # print "MAPE of " + classifier_name + " of test " + str(i) +" : "  + str(t_mape)
-        print "MSE of " + classifier_name + " of test " + str(i) +" : "  + str(t_mse)
-        print "RMSE of" + classifier_name + " of test " + str(i) +" : "  + str(t_rmse)
+        # print "MSE of " + classifier_name + " of test " + str(i) +" : "  + str(t_mse)
+        # print "RMSE of" + classifier_name + " of test " + str(i) +" : "  + str(t_rmse)
 
         mean_tpr += interp(mean_fpr, fpr, tpr)
         mean_tpr[0] = 0.0
@@ -418,14 +430,17 @@ def train_and_plot_roc(classifier, classifier_name, save_path, X, y):
     plt.plot([0, 1], [0, 1], linestyle='--', lw=lw, color='k',
          label='Luck')
 
-    print "MAE of " + classifier_name +" : " + str(np.mean(np.array(mean_mae)))
-    # print "MAPE of " + classifier_name +" : " + str(np.mean(np.array(mean_mape)))
-    print "MSE of " + classifier_name +" : "  + str(np.mean(np.array(mean_mse)))
-    print "RMSE of " + classifier_name +" : "  + str(np.mean(np.array(mean_rmse)))
+    # print "MAE of " + classifier_name +" : " + str(np.mean(np.array(mean_mae)))
+    # print "MSE of " + classifier_name +" : "  + str(np.mean(np.array(mean_mse)))
+    # print "RMSE of " + classifier_name +" : "  + str(np.mean(np.array(mean_rmse)))
+
 
     mean_tpr /= cv.get_n_splits(X, y)
     mean_tpr[-1] = 1.0
     mean_auc = auc(mean_fpr, mean_tpr)
+
+    print "\t".join([str(np.mean(np.array(mean_mae))), str(np.mean(np.array(mean_mse))), str(np.mean(np.array(mean_rmse))),str(np.mean(np.array(mean_precision))),str(np.mean(np.array(mean_recall))),str(np.mean(np.array(mean_fscore))),str(mean_auc)])
+
     plt.plot(mean_fpr, mean_tpr, color='g', linestyle='--',
              label='Mean ROC (area = %0.2f)' % mean_auc, lw=lw)
 
@@ -444,9 +459,9 @@ def train_and_test_model_with_logistic_regression(data_dim,n_time_steps,X, y,sav
     random_state = np.random.RandomState(0)
     log_reg = LogisticRegression(C=10.0, penalty='l2',solver='sag', tol=1e-4,class_weight=class_weight, n_jobs=-1,random_state=random_state)
 
-    print "start Training Traditional Logistic Regression model"
+    # print "start Training Traditional Logistic Regression model"
     save_path_of_pdf= save_path + "roc_of_logistic_regression.pdf"
-    train_and_plot_roc(log_reg,'logistic regression',save_path_of_pdf,X,y)
+    train_and_plot_roc(log_reg,'logistic_regression',save_path_of_pdf,X,y)
 
     #grid_search =GridSearchCV(LogisticRegression(penalty='l2',solver='sag', tol=1e-4,class_weight='balanced', n_jobs=-1), param_grid=tuned_parameters, cv=5, scoring='f1')#['accuracy','precision','recall','f1'])
     # print("Performing grid search...")
@@ -493,57 +508,57 @@ def train_and_test_model_with_logistic_regression(data_dim,n_time_steps,X, y,sav
 
 #LDA
 def train_and_test_model_with_lda(data_dim,n_time_steps,X, y,save_path,split_ratio=0.7,class_weight={0:1,1:1}):
-    print "LinearDiscriminantAnalysis"
+    # print "LinearDiscriminantAnalysis"
     lda = LinearDiscriminantAnalysis(solver='svd',tol=1e-4)
     save_path_of_pdf= save_path + "roc_of_lda.pdf"
     train_and_plot_roc(lda,'lda',save_path_of_pdf,X,y)
 #QDA
 def train_and_test_model_with_qda(data_dim,n_time_steps,X, y,save_path,split_ratio=0.7):
     qda = QuadraticDiscriminantAnalysis(tol=1e-4)
-    print "QuadraticDiscriminantAnalysis"
+    # print "QuadraticDiscriminantAnalysis"
     save_path_of_pdf= save_path + "roc_of_qda.pdf"
     train_and_plot_roc(qda,'qda',save_path_of_pdf,X,y)
 
 #AdaBoost
 def train_and_test_model_with_ada_boost(data_dim,n_time_steps,X, y,save_path,split_ratio=0.7):
-    print "AdaBoostClassifier"
+    # print "AdaBoostClassifier"
     ada_boost = AdaBoostClassifier(learning_rate=1.0, n_estimators=50)
 
     save_path_of_pdf= save_path + "roc_of_ada_boost.pdf"
     train_and_plot_roc(ada_boost,'ada_boost',save_path_of_pdf,X,y)
 #Bagging
 def train_and_test_model_with_bagging(data_dim,n_time_steps,X, y,save_path,split_ratio=0.7):
-    print "BaggingClassifier"
+    # print "BaggingClassifier"
     bc = BaggingClassifier(n_jobs=-1, n_estimators=50)
     save_path_of_pdf= save_path + "roc_of_bagging.pdf"
     train_and_plot_roc(bc,'BaggingClassifier',save_path_of_pdf,X,y)
 #RandomForest
 def train_and_test_model_with_random_forest(data_dim,n_time_steps,X, y,save_path,split_ratio=0.7,class_weight={0:1,1:1}):
-    print "RandomForestClassifier"
+    # print "RandomForestClassifier"
     rfc = RandomForestClassifier(n_jobs=-1,criterion='entropy',n_estimators=50,class_weight=class_weight)
     save_path_of_pdf= save_path + "roc_of_random_forest.pdf"
-    train_and_plot_roc(rfc,'random forest',save_path_of_pdf,X,y)
+    train_and_plot_roc(rfc,'random_forest',save_path_of_pdf,X,y)
 #GradientBoostingClassifier
 def train_and_test_model_with_gradient_boosting(data_dim,n_time_steps,X, y,save_path,split_ratio=0.7):
-    print "GradientBoostingClassifier"
+    # print "GradientBoostingClassifier"
     gbc = GradientBoostingClassifier(learning_rate=1.0, n_estimators=50)
     save_path_of_pdf= save_path + "roc_of_gradient_boosting.pdf"
-    train_and_plot_roc(gbc,'gradient boosting',save_path_of_pdf,X,y)
+    train_and_plot_roc(gbc,'gradient_boosting',save_path_of_pdf,X,y)
 #ExtraTreesClassifier
 def train_and_test_model_with_extra_tree(data_dim,n_time_steps,X, y,save_path,split_ratio=0.7,class_weight={0:1,1:1}):
-    print "ExtraTreesClassifier"
+    # print "ExtraTreesClassifier"
     etc = ExtraTreesClassifier(n_jobs=-1,criterion='entropy',n_estimators=50,class_weight=class_weight)
     save_path_of_pdf= save_path + "roc_of_extra_tree.pdf"
-    train_and_plot_roc(etc,'extra tree',save_path_of_pdf,X,y)
+    train_and_plot_roc(etc,'extra_tree',save_path_of_pdf,X,y)
 #LinearSVC
 def train_and_test_model_with_svm(data_dim,n_time_steps,X, y,save_path,split_ratio=0.7,class_weight={0:1,1:1}):
-    print "LinearSVC"
+    # print "LinearSVC"
     svc = LinearSVC(C=10.0,class_weight=class_weight)
     save_path_of_pdf= save_path + "roc_of_svm.pdf"
     train_and_plot_roc(svc,'svm',save_path_of_pdf,X,y)
 #DecisionTree
 def train_and_test_model_with_decision_tree(data_dim,n_time_steps, X, y,save_path,split_ratio=0.7,class_weight={0:1,1:1}):
-    print "DecisionTreeClassifier"
+    # print "DecisionTreeClassifier"
     dtc = DecisionTreeClassifier(max_depth=10,class_weight=class_weight)
     save_path_of_pdf= save_path + "roc_of_decision_tree.pdf"
-    train_and_plot_roc(dtc,'decision tree',save_path_of_pdf,X,y)
+    train_and_plot_roc(dtc,'decision_tree',save_path_of_pdf,X,y)

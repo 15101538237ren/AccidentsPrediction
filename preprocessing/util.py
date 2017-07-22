@@ -200,6 +200,7 @@ def get_work_day_data_for_train(dt_start,dt_end,time_interval, spatial_interval,
     hour_delta = datetime.timedelta(hours=1)
     work_day_accidents_for_train = {}
     t_time_interval = int(60 / time_interval)
+    print "start get workday data for train"
     #从1月12日开始生成训练数据
     for i in range(len(work_day_accidents_arr)):
         time_now = work_day_accidents_arr[i].create_time
@@ -209,7 +210,7 @@ def get_work_day_data_for_train(dt_start,dt_end,time_interval, spatial_interval,
             break
         time_now_str = time_now.strftime(second_format)
         now_week_day = time_now.weekday()
-        print "get workday: %s" % time_now_str
+        # print "get workday: %s" % time_now_str
         work_day_accidents_for_train[time_now_str] = {}
 
         #当前时刻的事故数据
@@ -567,13 +568,6 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
             data_for_now = np.zeros(data_shape)
 
             for idx, data_i in enumerate(data_merge):
-                # if normalize_data:
-                extra_data = [float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0, int(data_i.is_weekend)]
-                # else:
-                #     extra_data = [float(data_i.time_segment)]#float(data_i.weather_severity), float(data_i.pm25), float(data_i.time_segment)]#, int(data_i.is_weekend)]
-
-                # data_for_now[:, idx, 0] = [it for it in range(height * width)]
-                # data_for_now[:, idx, 1] = out_conv
                 data_content = np.array([int(item) for item in data_i.content.split(",")])
                 data_for_now[:, idx, 0] = data_content
 
@@ -585,6 +579,7 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
                 #     for h_j in range(height):
                 #         wh_id = w_i * height + h_j
                 #         data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
+                extra_data = [float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0, int(data_i.is_weekend)]
                 data_for_now[:, idx, 1: data_dim - added] = extra_data
                 if load_traffic_data:
                     grid_speed_nows = Grid_Speed.objects.filter(time_interval=time_interval, spatial_interval=spatial_interval, create_time=data_i.create_time)
@@ -678,7 +673,7 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
 
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w):
-
+    print "start get holiday and tiaoxiu data for train"
     accidents = get_all_data_in_index(dt_start, dt_end, time_interval,spatial_interval)
 
     tiaoxiu_accidents_for_train = {}
@@ -700,7 +695,7 @@ def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spati
     for dt_tiaoxiu in tx_dt_list:
         time_now = dt_tiaoxiu
         time_now_str = time_now.strftime(second_format)
-        print "tiaoxiu : %s" % time_now_str
+        # print "tiaoxiu : %s" % time_now_str
         tiaoxiu_accidents_for_train[time_now_str] = {}
 
         #当前时刻的事故数据
@@ -778,7 +773,7 @@ def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spati
                         break
                 for dt_now in dt_list:
                     time_now_str = dt_now.strftime(second_format)
-                    print "holiday: %s" % time_now_str
+                    # print "holiday: %s" % time_now_str
                     holiday_accidents_for_train[idx][time_now_str] = {}
 
                     #当前时刻的事故数据
@@ -1050,12 +1045,23 @@ def generate_polylines_for_beijing(lng_coors, lat_coors,output_file_path,min_lat
     output_file.close()
 def generate_grid_timelines_for_beijing(datetime_query,lng_coors,lat_coors,out_data_file,sep,time_interval):
     query_of_accidents = Accidents_Array.objects.filter(spatial_interval=sep,time_interval=time_interval,create_time=datetime_query)
+    print "generate_grid_timelines_for_beijing %s" % str(datetime_query)
+    print "out_data_file %s" % out_data_file
     if len(query_of_accidents):
+        print "time_interval %d" % time_interval
+        print "sep %d" % sep
+        print "len of query_of_accidents %d" % len(query_of_accidents)
+        print "query_of_accidents[0].content\n %s" % query_of_accidents[0].content
+
         accidents_arr = [int(item) for item in query_of_accidents[0].content.split(",")]
 
         output_file = open(out_data_file,"w")
         n_lat = len(lat_coors)-1
         n_lng = len(lng_coors)-1
+
+        for it in range(n_lng * n_lat):
+            out_str = "delete rectangle_" + str(it) + ";\n"
+            output_file.write(out_str)
 
         for i_lng in range(n_lng):
             for j_lat in range(n_lat):
