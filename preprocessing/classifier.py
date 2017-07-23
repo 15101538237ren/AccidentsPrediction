@@ -29,6 +29,14 @@ from sklearn.model_selection import StratifiedKFold
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+mean_mae_of_lstm = [[] for itt in range(16)]
+mean_mse_of_lstm = [[] for itt in range(16)]
+mean_rmse_of_lstm = [[] for itt in range(16)]
+mean_precision_of_lstm = [[] for itt in range(16)]
+mean_recall_of_lstm = [[] for itt in range(16)]
+mean_fscore_of_lstm = [[] for itt in range(16)]
+mean_auc_of_lstm = [[] for itt in range(16)]
+
 def mean_absolute_percentage_error(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 #Dense Network
@@ -112,10 +120,101 @@ def train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps, all_d
     validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=callbacks)#, initial_epoch=28)
     return 0
 
+def train_and_test_model_with_sdae(data_dim,n_time_steps,all_data_list, all_label_list,save_path,split_ratio=0.8,class_weight={0:1,1:1}):
+    classifier_name = "SdAE"
+    cv = StratifiedKFold(n_splits=5)
+    it = 0
+    mean_tpr = 0.0
+    mean_fpr = np.linspace(0, 1, 100)
+    colors = cycle(['cyan', 'indigo', 'seagreen', 'yellow', 'blue', 'darkorange'])
+
+    lw = 2
+    i = 0
+    plt.clf()
+    plt.cla()
+    mean_mae = []
+    mean_mse = []
+    mean_rmse = []
+    mean_precision = []
+    mean_recall = []
+    mean_fscore = []
+    for (train, test), color in zip(cv.split(all_data_list, all_label_list), colors):
+        all_val_label_list = all_label_list[test]
+        all_train_label_list = all_label_list[train]
+
+        all_val_data_list = all_data_list[test]
+        all_train_data_list = all_data_list[train]
+
+        it += 1
+
+        batch_size = 16
+        steps_per_epoch = 1000
+        epochs = 2
+        validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
+
+        encoding_dim=40
+        input_seq = Input(shape=(n_time_steps*data_dim,))
+        encoded = Dense(encoding_dim, activation='relu')(input_seq)
+        decoded = Dense(n_time_steps*data_dim, activation='sigmoid')(encoded)
+        autoencoder = Model(input=input_seq, output=decoded)
+        logistic_regression = Dense(1,activation='sigmoid')(encoded)
+        
+        encoder = Model(input=input_seq, output=logistic_regression)
+        autoencoder.compile(optimizer='adam', loss='mse')
+
+        autoencoder.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
+        steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size),
+        validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[])
+        
+        pred_class = encoder.predict(all_val_data_list)
+        fpr, tpr, thresholds = roc_curve(all_val_label_list, pred_class)
+        (precision,recall,fbeta_score,support)=precision_recall_fscore_support(all_val_label_list, pred_class, pos_label =1, average='binary')
+        
+        mean_precision.append(precision)
+        mean_recall.append(recall)
+        mean_fscore.append(fbeta_score)
+
+        t_mae = mean_absolute_error(all_val_label_list, pred_class)
+        mean_mae.append(t_mae)
+        t_mse = mean_squared_error(all_val_label_list, pred_class)
+        mean_mse.append(t_mse)
+        t_rmse = np.sqrt(mean_squared_error(all_val_label_list, pred_class))
+        mean_rmse.append(t_rmse)
+        mean_tpr += interp(mean_fpr, fpr, tpr)
+        mean_tpr[0] = 0.0
+        roc_auc = auc(fpr, tpr)
+        plt.plot(fpr, tpr, lw=lw, color=color,
+                 label='ROC fold %d (area = %0.2f)' % (i, roc_auc))
+        i += 1
+
+    plt.plot([0, 1], [0, 1], linestyle='--', lw=lw, color='k',
+         label='Luck')
+
+    mean_tpr /= cv.get_n_splits(all_data_list, all_label_list)
+    mean_tpr[-1] = 1.0
+    mean_auc = auc(mean_fpr, mean_tpr)
+
+    print "\t".join("SdAE:",[str(np.mean(np.array(mean_mae))), str(np.mean(np.array(mean_mse))), str(np.mean(np.array(mean_rmse))),str(np.mean(np.array(mean_precision))),str(np.mean(np.array(mean_recall))),str(np.mean(np.array(mean_fscore))),str(mean_auc)])
+
+    plt.plot(mean_fpr, mean_tpr, color='g', linestyle='--',
+             label='Mean ROC (area = %0.2f)' % mean_auc, lw=lw)
+
+    plt.xlim([-0.05, 1.05])
+    plt.ylim([-0.05, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver operating characteristic of ' + classifier_name)
+    plt.legend(loc="lower right")
+    # plt.show()
+    plt.savefig(save_path+"sdae.pdf")
+
 #LSTM
 def train_and_test_model_with_lstm(data_dim,n_time_steps,all_data_list, all_label_list,save_path,split_ratio=0.8,class_weight={0:1,1:1}):
     cv = StratifiedKFold(n_splits=5)
     it = 0
+    epochs = 15 #int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size))) * 2000
+
+    
     for (train, test) in cv.split(all_data_list, all_label_list):
         all_val_label_list = all_label_list[test]
         all_train_label_list = all_label_list[train]
@@ -131,7 +230,6 @@ def train_and_test_model_with_lstm(data_dim,n_time_steps,all_data_list, all_labe
         lstm_dim = n_time_steps
         batch_size = 16
         steps_per_epoch = 100
-        epochs = 15 #int(math.ceil(float(len(all_train_label_list))/float(steps_per_epoch * batch_size))) * 2000
         validation_steps = int(math.ceil(float(len(all_val_label_list))/float(batch_size)))
 
         print "epochs %d" % epochs
@@ -146,12 +244,15 @@ def train_and_test_model_with_lstm(data_dim,n_time_steps,all_data_list, all_labe
         print "start Training LSTM model %d" % it
         save_path_of_pdf= save_path + "roc_of_1_layer_lstm"
 
-        plot_roc = Plot_ROC_CV(model_name='1 layer lstm model',fig_path=save_path_of_pdf,cv_id=it, x_test=all_val_data_list, y_test=all_val_label_list)
+        plot_roc = Plot_ROC_CV_OF_LSTM(model_name='1 layer lstm model',fig_path=save_path_of_pdf,cv_id=it, x_test=all_val_data_list, y_test=all_val_label_list)
         callbacks = [lrate, checkpointer,plot_roc,early_stoping]
 
         model.fit_generator(generate_arrays_of_train(all_train_data_list, all_train_label_list, batch_size),
         steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(all_val_data_list, all_val_label_list, batch_size),
         validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=callbacks)#, initial_epoch=28)
+
+    for epoch in range(1, epochs):
+        print "\t".join("lstm epoch "+str(epoch)+":",[str(np.mean(np.array(mean_mae_of_lstm[epoch]))), str(np.mean(np.array(mean_mse_of_lstm[epochs]))), str(np.mean(np.array(mean_rmse_of_lstm[epoch]))),str(np.mean(np.array(mean_precision_of_lstm[epoch]))),str(np.mean(np.array(mean_recall_of_lstm[epoch]))),str(np.mean(np.array(mean_fscore_of_lstm[epoch]))),str(mean_auc_of_lstm[epoch])])
     return 0
 #LSTM
 def train_and_test_model_with_2_layer_lstm(data_dim,n_time_steps,all_data_list, all_label_list,save_path,split_ratio=0.8,class_weight={0:1,1:1}):
@@ -329,6 +430,53 @@ class Plot_ROC_CV(keras.callbacks.Callback):
         plt.title('Receiver operating characteristic of ' + self.model_name + 'of epoch ' + str(epoch) + ' of ' + str(self.cv_id))
         plt.legend(loc="lower right")
         plt.savefig(self.fig_path+"_"+str(self.cv_id)+"_"+str(epoch)+".pdf")
+
+
+class Plot_ROC_CV_OF_LSTM(keras.callbacks.Callback):
+    def __init__(self, model_name, fig_path,cv_id, x_test,y_test):
+        super(Plot_ROC_CV_OF_LSTM, self).__init__()
+        self.model_name = model_name
+        self.fig_path = fig_path
+        self.x_test = x_test
+        self.y_test = y_test
+        self.cv_id = cv_id
+
+    def on_epoch_end(self, epoch, logs={}):
+        color = 'blue'
+        lw = 2
+        plt.clf()
+        plt.cla()
+
+        probas_ = self.model.predict(self.x_test)
+        pred = probas_[:, 0]
+        # Compute ROC curve and area the curve
+        fpr, tpr, thresholds = roc_curve(self.y_test, pred)
+        print "MAE of " + self.model_name+ ' of ' + str(self.cv_id) + " of epoch " + str(epoch) +" : " + str(mean_absolute_error(self.y_test, pred))
+        print "MSE of " + self.model_name + ' of ' + str(self.cv_id) + " of epoch " + str(epoch) +" : "  + str(mean_squared_error(self.y_test, pred))
+        print "RMSE of" + self.model_name + ' of ' + str(self.cv_id) + " of epoch " + str(epoch) +" : "  + str(np.sqrt(mean_squared_error(self.y_test, pred)))
+        mean_mae_of_lstm[epoch].append(mean_absolute_error(self.y_test, pred))
+        mean_mse_of_lstm[epoch].append(mean_squared_error(self.y_test, pred))
+        mean_rmse_of_lstm[epoch].append(np.sqrt(mean_squared_error(self.y_test, pred)))
+
+        (precision,recall,fbeta_score,support)=precision_recall_fscore_support(self.y_test, pred, pos_label =1, average='binary')
+        mean_precision_of_lstm[epoch].append(precision)
+        mean_recall_of_lstm[epoch].append(recall)
+        mean_fscore_of_lstm[epoch].append(fbeta_score)
+        roc_auc = auc(fpr, tpr)
+        mean_auc_of_lstm[epoch].append(roc_auc)
+
+        plt.plot(fpr, tpr, lw=lw, color=color,
+                 label='ROC (area = %0.2f)' % roc_auc)
+
+        plt.plot([0, 1], [0, 1], linestyle='--', lw=lw, color='k', label='Luck')
+
+        plt.xlim([-0.05, 1.05])
+        plt.ylim([-0.05, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver operating characteristic of ' + self.model_name + 'of epoch ' + str(epoch) + ' of ' + str(self.cv_id))
+        plt.legend(loc="lower right")
+        plt.savefig(self.fig_path+"_"+str(self.cv_id)+"_"+str(epoch)+".pdf")
 class Plot_ROC(keras.callbacks.Callback):
     def __init__(self, model_name, fig_path, x_test,y_test):
         super(Plot_ROC, self).__init__()
@@ -367,7 +515,7 @@ class Plot_ROC(keras.callbacks.Callback):
         plt.savefig(self.fig_path+"_"+str(epoch)+".pdf")
 
 def train_and_plot_roc(classifier, classifier_name, save_path, X, y):
-    cv = StratifiedKFold(n_splits=6)
+    cv = StratifiedKFold(n_splits=5)
     mean_tpr = 0.0
     mean_fpr = np.linspace(0, 1, 100)
     colors = cycle(['cyan', 'indigo', 'seagreen', 'yellow', 'blue', 'darkorange'])

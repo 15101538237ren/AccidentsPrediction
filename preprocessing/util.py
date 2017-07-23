@@ -611,25 +611,25 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
 
 
             for i_t in range(height * width):
-                addition_data = [i_t, data_labels.weather_severity, data_labels.pm25]
+                # addition_data = [i_t, data_labels.weather_severity, data_labels.pm25]
                 if data_arr[i_t] == 0:#data_arr[i_t] == [1, 0, 0]:
                     if special == 1:
                         # zero_special_data_list.append(data_for_now[i_t, :, :])
                         zero_special_data_list.append(data_for_now[i_t, :])
                         zero_special_label_list.append(data_arr[i_t])
-                        zero_special_addition_data.append(addition_data)
+                        # zero_special_addition_data.append(addition_data)
                         # zero_special_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
                     else:
                         # zero_workday_data_list.append(data_for_now[i_t, :, :])
                         zero_workday_data_list.append(data_for_now[i_t, :])
                         zero_workday_label_list.append(data_arr[i_t])
-                        zero_workday_addition_data.append(addition_data)
+                        # zero_workday_addition_data.append(addition_data)
                         # zero_workday_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
                 else:
                     # positive_data_list.append(data_for_now[i_t, :, :])
                     positive_data_list.append(data_for_now[i_t, :])
                     positive_label_list.append(data_arr[i_t])
-                    positive_addition_data.append(addition_data)
+                    # positive_addition_data.append(addition_data)
                     # positive_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
             print "finish %s" % dt_str
 

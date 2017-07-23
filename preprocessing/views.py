@@ -150,29 +150,31 @@ def index(request):
     for time_interval in time_intervals:
         for spatial_interval in spatial_intervals:
             [all_data_list, all_label_list] = generate_data_for_train_and_test(load_traffic_data,outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **spatial_interval)
+            print "n,n_d,n_w:%d%d%d,data_dim:%d\ttime_interval:%d\tspatial_interval:%d" %(n,n_d,n_w,data_dim,time_interval,spatial_interval['d_len'])
+
             #
-            # train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            all_data_list_flatten = np.array([item.flatten() for item in all_data_list])
+            all_data_list = all_data_list_flatten
+            train_and_test_model_with_sdae(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
             # train_and_test_model_with_gru(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio,class_weight=class_weight)
 
             #
-            all_data_list_flatten = np.array([item.flatten() for item in all_data_list])
-            all_data_list = all_data_list_flatten
 
             # train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
 
             # train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
             # train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps,all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
             
-            print "n,n_d,n_w:%d%d%d,data_dim:%d\ttime_interval:%d\tspatial_interval:%d" %(n,n_d,n_w,data_dim,time_interval,spatial_interval['d_len'])
-            train_and_test_model_with_logistic_regression(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio,class_weight=class_weight)
-            train_and_test_model_with_lda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-            train_and_test_model_with_qda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-            train_and_test_model_with_ada_boost(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-            train_and_test_model_with_random_forest(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio)
-            train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            train_and_test_model_with_decision_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            train_and_test_model_with_svm(data_dim,n_time_steps, all_data_list,all_label_list,save_path,  split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_logistic_regression(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_lda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
+            # train_and_test_model_with_qda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
+            # train_and_test_model_with_ada_boost(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
+            # train_and_test_model_with_random_forest(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio)
+            # train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_decision_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_svm(data_dim,n_time_steps, all_data_list,all_label_list,save_path,  split_ratio=split_ratio,class_weight=class_weight)
             del all_data_list
             del all_label_list
 
