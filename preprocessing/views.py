@@ -165,17 +165,26 @@ def index(request):
             print('Pre-merging validation target statistics: {}'.format(Counter(validation_label)))
 
             print "n,n_d,n_w:%d%d%d,data_dim:%d\ttime_interval:%d\tspatial_interval:%d" %(n,n_d,n_w,data_dim,time_interval,spatial_interval['d_len'])
-
-            # train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            # train_and_test_model_with_lstm_and_dnn(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            train_weight_class = dict(Counter(train_label))
+            train_and_test_model_with_lstm(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,**train_weight_class)
+            train_and_test_model_with_gru(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,**train_weight_class)
 
             train_data_tradition = train_data + validation_data
             train_label_tradition = train_label + validation_label
-
+            "start flatten"
             train_data_tradition_flatten = np.array([item.flatten() for item in train_data_tradition])
             train_data_tradition = train_data_tradition_flatten
 
-            # train_and_test_model_with_3layer_sdae(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            train_data_flatten =  np.array([item.flatten() for item in validation_data])
+            train_data = train_data_flatten
+
+            validation_data_flatten = np.array([item.flatten() for item in validation_data])
+            validation_data = validation_data_flatten
+
+            test_data_flatten = np.array([item.flatten() for item in test_data])
+            test_data = test_data_flatten
+            "end flatten!"
+            train_and_test_model_with_3layer_sdae(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,**train_weight_class)
             train_and_test_model_with_lasso_regression(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
             train_and_test_model_with_ridge_regression(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
             train_and_test_model_with_decision_tree(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
