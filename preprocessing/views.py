@@ -4,14 +4,20 @@ from django.template import RequestContext
 from django.http import JsonResponse
 from import_data import *
 from util import *
+from collections import Counter
+from imblearn.under_sampling import RandomUnderSampler
 from AccidentsPrediction.settings import BASE_DIR
 from correlation_analysis import f_k_tau, surface_plot_of_f_k_tau, export_accidents_array_to_xlxs,calc_C_t,get_all_data_for_analysis
 from route_related import get_all_routes, import_all_route_info_to_db, import_all_route_speed_to_db,validate_and_normalize_route,create_grid_speed, fix_zero_value_or_data_error_of
 from class_for_shape import Rect, Vector2, CheckRectLine
 from classifier import *
-from imblearn.under_sampling import RandomUnderSampler
-from collections import Counter
 # Create your views here.
+def visualize_poi_of_accident(request):
+    dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
+    dt_end = datetime.datetime.strptime("2016-03-01 00:00:00",second_format)
+    outfile_path = BASE_DIR+'/static/js/accident.js'
+    get_accident_for_visualization(dt_start, dt_end,outfile_path)
+    return render_to_response('prep/beijing.html', locals(), context_instance=RequestContext(request))
 def visualize_roads(request):
     # validate_and_normalize_route()
     out_grid_file_path = BASE_DIR+'/static/js/grid.js'
@@ -104,12 +110,13 @@ def index(request):
     # dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
     dt_start = datetime.datetime.strptime("2016-08-08 00:00:00", second_format)
     # dt_end = datetime.datetime.strptime("2016-01-01 23:59:59",second_format)
-    dt_end = datetime.datetime.strptime("2016-09-01 00:00:00",second_format)
+    train_dt_end = datetime.datetime.strptime("2016-08-23 00:00:00",second_format)
+    validation_dt_end = datetime.datetime.strptime("2016-08-26 00:00:00",second_format)
+    test_dt_end = datetime.datetime.strptime("2016-09-01 00:00:00",second_format)
     # dt_end = datetime.datetime.strptime("2016-01-02 00:00:00",second_format)
     # dt_end = datetime.datetime.strptime("2017-02-28 23:59:59",second_format)
     # outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
-    n = 4
-    n_d = n_w = 3
+
     # get_all_data_for_analysis(dt_start,dt_end,time_interval=time_interval,n=n,n_d=n_d,n_w=n_w,**param_1000)
 
     # out_csv_path = BASE_DIR+'/preprocessing/data/surface_'+str(time_interval)+'min.csv'
@@ -140,43 +147,52 @@ def index(request):
         added = 1
     else:
         added = 0
-    n_time_steps = n + (n_d + n_w ) * 2 + 2
     split_ratio = 0.7
-    data_dim = 1 + added + 4
-    class_weight = {0: 1, 1: 1}
+    data_dim = 1 + 4 + added
     save_path = BASE_DIR+'/preprocessing/data/'
-    time_intervals = [60, 45, 30, 15]
-    spatial_intervals = [param_1000,param_500]
+    time_intervals = [60]#, 45, 30, 15]
+    spatial_intervals = [param_1000]#, param_500]
     for time_interval in time_intervals:
         for spatial_interval in spatial_intervals:
-            [all_data_list, all_label_list] = generate_data_for_train_and_test(load_traffic_data,outpkl_file_path,dt_start, dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **spatial_interval)
+            n = 4
+            n_d = 3
+            n_w = 3
+            n_time_steps = n + (n_d + n_w ) * 2 + 2
+            [train_data, validation_data, test_data, train_label, validation_label, test_label] = generate_data_for_train_and_test(load_traffic_data,outpkl_file_path,dt_start,train_dt_end, validation_dt_end, test_dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **spatial_interval)
+
+            print('Testing target statistics: {}'.format(Counter(test_label)))
+            print('Pre-merging training target statistics: {}'.format(Counter(train_label)))
+            print('Pre-merging validation target statistics: {}'.format(Counter(validation_label)))
+
             print "n,n_d,n_w:%d%d%d,data_dim:%d\ttime_interval:%d\tspatial_interval:%d" %(n,n_d,n_w,data_dim,time_interval,spatial_interval['d_len'])
 
-            #
-            train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            all_data_list_flatten = np.array([item.flatten() for item in all_data_list])
-            all_data_list = all_data_list_flatten
-            train_and_test_model_with_sdae(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            # train_and_test_model_with_gru(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_lstm(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            # train_and_test_model_with_lstm_and_dnn(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
 
-            #
+            train_data_tradition = train_data + validation_data
+            train_label_tradition = train_label + validation_label
 
-            # train_and_test_model_with_keras_logistic_regression(data_dim, n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            train_data_tradition_flatten = np.array([item.flatten() for item in train_data_tradition])
+            train_data_tradition = train_data_tradition_flatten
 
-            # train_and_test_model_with_dense_network(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            # train_and_test_model_with_2_layer_dense_network(data_dim,n_time_steps,all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            
-            # train_and_test_model_with_logistic_regression(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio,class_weight=class_weight)
-            # train_and_test_model_with_lda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-            # train_and_test_model_with_qda(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-            # train_and_test_model_with_ada_boost(data_dim,n_time_steps, all_data_list,all_label_list,save_path, split_ratio=split_ratio)
-            # train_and_test_model_with_random_forest(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            # train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, all_data_list,all_label_list, save_path,split_ratio=split_ratio)
-            # train_and_test_model_with_extra_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            # train_and_test_model_with_decision_tree(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
-            # train_and_test_model_with_svm(data_dim,n_time_steps, all_data_list,all_label_list,save_path,  split_ratio=split_ratio,class_weight=class_weight)
-            del all_data_list
-            del all_label_list
+            # train_and_test_model_with_3layer_sdae(data_dim,n_time_steps, all_data_list,all_label_list, save_path, split_ratio=split_ratio,class_weight=class_weight)
+            train_and_test_model_with_lasso_regression(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+            train_and_test_model_with_ridge_regression(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+            train_and_test_model_with_decision_tree(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+            train_and_test_model_with_svm(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+            train_and_test_model_with_random_forest(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+            print('Pre-undersampling Training target statistics: {}'.format(Counter(train_label_tradition)))
+            # Apply the random under-sampling
+            rus = RandomUnderSampler(return_indices=True)
+            train_data_resampled, train_label_resampled, idx_resampled = rus.fit_sample(train_data_tradition, train_label_tradition)
+
+            print('After-undersampling Training target statistics: {}'.format(Counter(train_label_resampled)))
+            train_and_test_model_with_lda(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
+            train_and_test_model_with_qda(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
+            train_and_test_model_with_ada_boost(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
+            train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
+
+            del train_data_tradition, train_data_tradition_flatten, train_label_tradition,train_data, validation_data, test_data, train_label, validation_label, test_label
 
 
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))

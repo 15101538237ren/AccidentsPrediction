@@ -469,10 +469,15 @@ def get_array_of_seq_of_function(zero_special_list, positive_list, zero_workday_
 
     return np.array(rtn_arr), np.array(rtn_lbl_arr), np.array(rtn_function_arr)
 
-def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_start, dt_end, time_interval, n, n_d, n_w, **params):
+def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_start, train_dt_end, validation_dt_end, test_dt_end, time_interval, n, n_d, n_w, **params):
     #区域类型的list
     region_type_list = range(1, 13)
-
+    train_data = []
+    train_label = []
+    test_data = []
+    test_label = []
+    validation_data = []
+    validation_label = []
     #经度网格数量
     width = params["n_lng"]
     #纬度网格数量
@@ -488,7 +493,7 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
         added = 1
     else:
         added = 0
-    data_dim = 1 + added + 4
+    data_dim = added + 1+ 4#conv_dim * 2 + 4
     normalize_data = True
     #卷积操作相关
 
@@ -500,35 +505,13 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
     conv_param = {'stride': 1, 'pad': 1}
 
     work_day_dt_start = datetime.datetime.strptime("2016-01-12 00:00:00", second_format)
-    work_day_acc = get_work_day_data_for_train(work_day_dt_start,dt_end,time_interval, spatial_interval, n, n_d, n_w)
+    work_day_acc = get_work_day_data_for_train(work_day_dt_start,test_dt_end,time_interval, spatial_interval, n, n_d, n_w)
     holiday_dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
-    tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(holiday_dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w)
-
-    # region_functions = Region_Function.objects.filter(spatial_interval=spatial_interval).order_by("region_type")
-    # region_matrix_dict = {}
-    #
-    # for r_f in region_functions:
-    #     region_cnt_matrix = [int(item) for item in r_f.region_cnt_matrix.split(",")]
-    #     region_matrix_dict[str(r_f.region_type)] = region_cnt_matrix
-
-    zero_workday_data_list = []
-    zero_workday_label_list = []
-    zero_workday_addition_data = []
-    # zero_workday_function_list = []
-
-    zero_special_data_list = []
-    zero_special_label_list = []
-    zero_special_addition_data = []
-    # zero_special_function_list = []
-
-    positive_data_list = []
-    positive_label_list = []
-    positive_addition_data = []
-    # positive_function_list = []
+    tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(holiday_dt_start, test_dt_end,time_interval, spatial_interval, n, n_d, n_w)
 
     dt_list = []
     dt_now = dt_start
-    while dt_now < dt_end:
+    while dt_now < test_dt_end:
         dt_list.append(dt_now)
         dt_now += datetime.timedelta(minutes= time_interval)
 
@@ -579,13 +562,23 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
                 #     for h_j in range(height):
                 #         wh_id = w_i * height + h_j
                 #         data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
-                extra_data = [float(data_i.weather_severity)/5.0, float(data_i.pm25)/430.0, float(data_i.time_segment)/6.0, int(data_i.is_weekend)]
-                data_for_now[:, idx, 1: data_dim - added] = extra_data
+                # ,  int(data_i.is_weekend)* conv_dim] = out_conv_of_speed[0,0,h_j, w_i,:]
+
+                extra_data = [float(data_i.weather_severity)/5.0,  float(data_i.pm25)/430.0,float(data_i.time_segment)/6.0,int(data_i.is_holiday)]
+                data_for_now[:, idx,1: data_dim-added] = extra_data
+
                 if load_traffic_data:
                     grid_speed_nows = Grid_Speed.objects.filter(time_interval=time_interval, spatial_interval=spatial_interval, create_time=data_i.create_time)
                     if len(grid_speed_nows):
-                        grid_speed_now = [float(item) for item in grid_speed_nows[0].content.split(",")]
+                        grid_speed_now = np.array([float(item) for item in grid_speed_nows[0].content.split(",")])
+                        # grid_speed_now = grid_speed_now.reshape(x_shape)
+                        # out_conv_of_speed= get_conv_kernal_crespond_data(grid_speed_now, w, b, conv_param)
                         data_for_now[:,idx, -1] = grid_speed_now
+
+                        # for w_i in range(width):
+                        #     for h_j in range(height):
+                        #         wh_id = w_i * height + h_j
+                        #         data_for_now[wh_id,idx, conv_dim: 2
             # data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
 
             # print "data_for_now shape: ",
@@ -593,83 +586,36 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
 
             data_arr =[]
             for item in data_labels.content.split(","):
-                # if int(item) > 1:
-                #     content_arr = [0, 0, 1]
-                # elif int(item) == 1:
-                #     content_arr = [0, 1, 0]
-                # else:
-                #     content_arr = [1, 0, 0]
-                # data_arr.append(content_arr)
-
                 if int(item) > 0:
                     content_to_append = 1
                 else:
                     content_to_append = 0
                 data_arr.append(content_to_append)
-                # print "item: %s \tcontent_arr:" % item,
-                # print content_arr
 
-
-            for i_t in range(height * width):
-                # addition_data = [i_t, data_labels.weather_severity, data_labels.pm25]
-                if data_arr[i_t] == 0:#data_arr[i_t] == [1, 0, 0]:
-                    if special == 1:
-                        # zero_special_data_list.append(data_for_now[i_t, :, :])
-                        zero_special_data_list.append(data_for_now[i_t, :])
-                        zero_special_label_list.append(data_arr[i_t])
-                        # zero_special_addition_data.append(addition_data)
-                        # zero_special_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
-                    else:
-                        # zero_workday_data_list.append(data_for_now[i_t, :, :])
-                        zero_workday_data_list.append(data_for_now[i_t, :])
-                        zero_workday_label_list.append(data_arr[i_t])
-                        # zero_workday_addition_data.append(addition_data)
-                        # zero_workday_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
-                else:
-                    # positive_data_list.append(data_for_now[i_t, :, :])
-                    positive_data_list.append(data_for_now[i_t, :])
-                    positive_label_list.append(data_arr[i_t])
-                    # positive_addition_data.append(addition_data)
-                    # positive_function_list.append([region_matrix_dict[str(i)][i_t] for i in region_type_list])
+            if dt_start < dt_now < train_dt_end:
+                for i_t in range(height * width):
+                    train_data.append(data_for_now[i_t, :])
+                    train_label.append(data_arr[i_t])
+            elif train_dt_end < dt_now < validation_dt_end:
+                for i_t in range(height * width):
+                    validation_data.append(data_for_now[i_t, :])
+                    validation_label.append(data_arr[i_t])
+            else:
+                for i_t in range(height * width):
+                    test_data.append(data_for_now[i_t, :])
+                    test_label.append(data_arr[i_t])
             print "finish %s" % dt_str
-
-    cnt_positive = len(positive_label_list)
-    cnt_zero_workday = len(zero_workday_label_list)
-    cnt_zero_special = len(zero_special_label_list)
-    total_data_cnt = cnt_zero_special + cnt_zero_workday + cnt_positive
-
-    print "pre total: %d, pos: %d, rate %.3f" % (total_data_cnt, cnt_positive, float(cnt_positive)/float(total_data_cnt))
-    print "cnt_positive: %.3f, cnt_zero_workday: %.3f, cnt_zero_special: %.3f" % (float(cnt_positive)/float(total_data_cnt), float(cnt_zero_workday)/float(total_data_cnt), float(cnt_zero_special)/float(total_data_cnt))
-
-    temp_positive_data_list = []
-    temp_positive_label_list = []
-    # temp_postive_addition_data = []
-    # temp_positive_function_list = []
+    # sum_pos_of_train = sum(train_label)
+    # print "total train: %d, pos: %d, rate %.3f" % (len(train_label), sum_pos_of_train, float(sum_pos_of_train)/float(len(train_label)))
     #
-    temp_zero_special_data_list = []
-    temp_zero_special_label_list = []
-    # temp_zero_special_addition_data = []
-    # temp_zero_special_function_list=[]
-    temp_positive_data_list += positive_data_list
-    temp_positive_label_list += positive_label_list
-    # temp_postive_addition_data += positive_addition_data
-    # # temp_positive_function_list += positive_function_list
+    # sum_pos_of_validation = sum(validation_label)
+    # print "total validation: %d, pos: %d, rate %.3f" % (len(validation_label), sum_pos_of_validation, float(sum_pos_of_validation)/float(len(validation_label)))
     #
-    temp_zero_special_data_list += zero_special_data_list
-    temp_zero_special_label_list += zero_special_label_list
-    # temp_zero_special_addition_data += zero_special_addition_data
-    # # temp_zero_special_function_list += zero_special_function_list
-    tot_positive_len = len(temp_positive_label_list)
-    tot_special_len = int(len(temp_zero_special_label_list) / 4)
-    tot_zero_workday_len = int(tot_positive_len - tot_special_len)
+    # sum_pos_of_test = sum(test_label)
+    # print "total test: %d, pos: %d, rate %.3f" % (len(test_label), sum_pos_of_test, float(sum_pos_of_test)/float(len(test_label)))
     #
-    sub_total = tot_positive_len + tot_special_len + tot_zero_workday_len
-    print "post total: %d, pos: %d, rate %.3f" % (sub_total, tot_positive_len, float(tot_positive_len)/float(sub_total))
-
-    all_data_list, all_label_list = get_array_of_seq(temp_zero_special_data_list[0: tot_special_len], temp_positive_data_list[0: tot_positive_len], zero_workday_data_list[0:tot_zero_workday_len], temp_zero_special_label_list[0: tot_special_len], temp_positive_label_list[0:tot_positive_len], zero_workday_label_list[0:tot_zero_workday_len])
-    # all_data_list, all_label_list = get_array_of_seq(zero_special_data_list, positive_data_list, zero_workday_data_list, zero_special_label_list, positive_label_list, zero_workday_label_list)
-    print "finish get all data"
-    return [all_data_list,all_label_list]
+    # print "finish get all data"
+    return [train_data, validation_data, test_data, train_label, validation_label, test_label]
 
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w):

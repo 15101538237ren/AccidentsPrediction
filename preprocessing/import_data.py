@@ -7,6 +7,29 @@ sys.setdefaultencoding('utf8')
 
 weather_severity = {u"晴":0, u"浮尘":0, u"阴":0, u"多云":0, u"霾":1, u"雾":1, u"小雨":2, u"阵雨":2, u"雷阵雨":2, u"中雨":3, u"小雪":3, u"大雨":4, u"雨夹雪":4, u"暴雨":4, u"中雪":5, u"大雪":5}
 
+def get_accident_for_visualization(dt_start,dt_end,out_file_path):
+    call_incidences = Call_Incidence.objects.filter(create_time__range=[dt_start,dt_end])#Call_Incidence.objects.all()
+    res = []
+
+    for call_incidence in call_incidences:
+        lat = round(float(call_incidence.latitude),6)
+        lng = round(float(call_incidence.longitude),6)
+        res.append([lng, lat, 1])
+    res_app = []
+    app_accidents = Call_Incidence.objects.filter(create_time__range=[dt_start ,dt_start + datetime.timedelta(days=20)])
+    for app_accident in app_accidents:
+        lat = round(float(app_accident.latitude),6)
+        lng = round(float(app_accident.longitude),6)
+        res_app.append([lng, lat, 1])
+
+    outfile = open(out_file_path, "w")
+    res_str = json.dumps(res)
+    res_app_str = json.dumps(res_app)
+    outfile.write("var accident = " + res_str + ";\n")
+    outfile.write("var app_accident = " + res_app_str + ";\n")
+    outfile.close()
+    print "write successful to %s" % out_file_path
+    return
 def unicode_csv_reader(gbk_data, dialect=csv.excel, **kwargs):
     csv_reader = csv.reader(gbk_data, dialect=dialect, **kwargs)
     for row in csv_reader:
