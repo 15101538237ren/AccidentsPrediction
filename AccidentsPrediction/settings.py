@@ -1,3 +1,4 @@
+#*_*coding:utf-8*_*
 """
 Django settings for AccidentsPrediction project.
 
@@ -115,3 +116,12 @@ STATIC_ROOT = normpath(join(BASE_DIR,  'static', 'root'))
 STATICFILES_DIRS = (
     normpath(join(BASE_DIR, 'static')),
 )
+
+#邮件配置
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.qq.com'                   #SMTP地址
+EMAIL_PORT = 587                                 #SMTP端口
+EMAIL_HOST_USER = '770728121@qq.com'           #自己的邮箱名
+EMAIL_HOST_PASSWORD = 'harry1472583690'           #自己的邮箱密码
+EMAIL_SUBJECT_PREFIX = '[django]'            #为邮件Subject-line前缀,默认是'[django]'
+EMAIL_USE_TLS = True                             #与SMTP服务器通信时，是否启动TLS链接(安全链接)。默认是false

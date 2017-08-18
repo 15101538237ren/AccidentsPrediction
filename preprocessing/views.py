@@ -3,6 +3,7 @@ from django.shortcuts import render_to_response
 from django.template import RequestContext
 from django.http import JsonResponse
 from import_data import *
+from django.core.mail import send_mail
 from util import *
 from collections import Counter
 from imblearn.under_sampling import RandomUnderSampler
@@ -147,7 +148,6 @@ def index(request):
         added = 1
     else:
         added = 0
-    split_ratio = 0.7
     data_dim = 1 + 4 + added
     save_path = BASE_DIR+'/preprocessing/data/'
     time_intervals = [60]#, 45, 30, 15]
@@ -157,25 +157,24 @@ def index(request):
             n = 4
             n_d = 3
             n_w = 3
+
             n_time_steps = n + (n_d + n_w ) * 2 + 2
-            [train_data, validation_data, test_data, train_label, validation_label, test_label] = generate_data_for_train_and_test(load_traffic_data,outpkl_file_path,dt_start,train_dt_end, validation_dt_end, test_dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **spatial_interval)
-
+            [train_data, validation_data, test_data,train_data_tradition, train_label, validation_label, test_label,train_label_tradition] = generate_data_for_train_and_test(load_traffic_data,outpkl_file_path,dt_start,train_dt_end, validation_dt_end, test_dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **spatial_interval)
+            counter_train = Counter(train_label)
             print('Testing target statistics: {}'.format(Counter(test_label)))
-            print('Pre-merging training target statistics: {}'.format(Counter(train_label)))
+            print('Pre-merging training target statistics: {}'.format(counter_train))
             print('Pre-merging validation target statistics: {}'.format(Counter(validation_label)))
-
+            train_weight_class = dict(counter_train)
             print "n,n_d,n_w:%d%d%d,data_dim:%d\ttime_interval:%d\tspatial_interval:%d" %(n,n_d,n_w,data_dim,time_interval,spatial_interval['d_len'])
-            train_weight_class = dict(Counter(train_label))
-            train_and_test_model_with_lstm(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,**train_weight_class)
-            train_and_test_model_with_gru(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,**train_weight_class)
 
-            train_data_tradition = train_data + validation_data
-            train_label_tradition = train_label + validation_label
+            # train_and_test_model_with_lstm(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight=train_weight_class)
+            # train_and_test_model_with_gru(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight=train_weight_class)
+
             "start flatten"
             train_data_tradition_flatten = np.array([item.flatten() for item in train_data_tradition])
             train_data_tradition = train_data_tradition_flatten
 
-            train_data_flatten =  np.array([item.flatten() for item in validation_data])
+            train_data_flatten = np.array([item.flatten() for item in train_data])
             train_data = train_data_flatten
 
             validation_data_flatten = np.array([item.flatten() for item in validation_data])
@@ -184,7 +183,9 @@ def index(request):
             test_data_flatten = np.array([item.flatten() for item in test_data])
             test_data = test_data_flatten
             "end flatten!"
-            train_and_test_model_with_3layer_sdae(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,**train_weight_class)
+
+            # train_and_test_model_with_3layer_sdae(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label, class_weight=train_weight_class)
+
             train_and_test_model_with_lasso_regression(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
             train_and_test_model_with_ridge_regression(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
             train_and_test_model_with_decision_tree(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
@@ -197,12 +198,13 @@ def index(request):
 
             print('After-undersampling Training target statistics: {}'.format(Counter(train_label_resampled)))
             train_and_test_model_with_lda(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
-            train_and_test_model_with_qda(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
             train_and_test_model_with_ada_boost(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
             train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
 
-            del train_data_tradition, train_data_tradition_flatten, train_label_tradition,train_data, validation_data, test_data, train_label, validation_label, test_label
+            del train_data_tradition, train_data_tradition_flatten, train_label_tradition,train_data,train_data_flatten, validation_data,validation_data_flatten, test_data, test_data_flatten, train_label, validation_label, test_label
 
+    dt_now = str(datetime.datetime.now())
+    send_mail('Finish', 'Finish Jobs at ' + dt_now, '770728121@qq.com', ['renhongleiz@126.com'],fail_silently=False)
 
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 def grid(request):

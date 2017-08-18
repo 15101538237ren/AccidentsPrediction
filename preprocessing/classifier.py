@@ -30,48 +30,8 @@ from sklearn.model_selection import StratifiedKFold
 reload(sys)
 sys.setdefaultencoding('utf8')
 itt_range = 40
-
-def mean_absolute_percentage_error(y_true, y_pred):
-    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
-def train_and_test_model_with_3layer_sdae(data_dim,n_time_steps,save_path,train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight):
-    epochs = itt_range
-    lstm_dim = n_time_steps
-    batch_size = 16
-    steps_per_epoch = 100
-    validation_steps = int(math.ceil(float(len(validation_label))/float(batch_size)))
-    encoding_dim = 40
-
-    print "epochs %d" % epochs
-    input_seq = Input(shape=(n_time_steps*data_dim,))
-    encoded = Dense(encoding_dim, activation='relu')(input_seq)
-    encoded1 = Dense(encoding_dim, activation='relu')(encoded)
-    encoded2 = Dense(encoding_dim, activation='relu')(encoded1)
-    decoded = Dense(n_time_steps*data_dim, activation='sigmoid')(encoded2)
-    autoencoder = Model(input=input_seq, output=decoded)
-    logistic_regression = Dense(1,activation='sigmoid')(decoded)
-    encoder = Model(input=input_seq, output=logistic_regression)
-    autoencoder.compile(optimizer='adam', loss='mse')
-
-    n_layers = 3
-    name = str(n_layers)+"layers_sdae"
-    print "start Training" + name
-    save_path_of_pdf= save_path + name
-
-    csv_path = save_path + name + ".csv"
-    csv_file = open(csv_path,"w")
-    csv_file.close()
-
-    roc_path = save_path + name + "_roc"
-
-    plot_roc = Plot_ROC_CV(model_name=name, predictor=encoder, roc_path= roc_path,csv_path=csv_path,fig_path=save_path_of_pdf, x_test=test_data, y_test=test_label)
-
-    autoencoder.fit_generator(generate_arrays_of_train(train_data, train_data, batch_size),
-    steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(validation_data, validation_data, batch_size),
-    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[plot_roc])
-    return 0
-
 #LSTM
-def train_and_test_model_with_lstm(data_dim,n_time_steps,save_path,train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight):
+def train_and_test_model_with_lstm(data_dim,n_time_steps, save_path,train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight = {0:1,1:1}):
     epochs = itt_range
     lstm_dim = n_time_steps
     batch_size = 16
@@ -110,11 +70,11 @@ def train_and_test_model_with_lstm(data_dim,n_time_steps,save_path,train_data, v
 
     model.fit_generator(generate_arrays_of_train(train_data, train_label, batch_size),
     steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(validation_data, validation_label, batch_size),
-    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[plot_roc])#, initial_epoch=28)
+    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[plot_roc])
     return 0
 
 #GRU
-def train_and_test_model_with_gru(data_dim,n_time_steps,save_path,train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight):
+def train_and_test_model_with_gru(data_dim,n_time_steps,save_path,train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight = {0:1,1:1}):
     epochs = itt_range
     lstm_dim = n_time_steps
     batch_size = 16
@@ -156,6 +116,43 @@ def train_and_test_model_with_gru(data_dim,n_time_steps,save_path,train_data, va
     validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[plot_roc])
     return 0
 
+#SdAE
+def train_and_test_model_with_3layer_sdae(data_dim,n_time_steps,save_path,train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight = {0:1,1:1}):
+    epochs = itt_range
+    batch_size = 16
+    steps_per_epoch = 100
+    validation_steps = int(math.ceil(float(len(validation_label))/float(batch_size)))
+    encoding_dim = 40
+
+    print "epochs %d" % epochs
+    input_seq = Input(shape=(n_time_steps*data_dim,))
+    encoded = Dense(encoding_dim, activation='relu')(input_seq)
+    encoded1 = Dense(encoding_dim, activation='relu')(encoded)
+    encoded2 = Dense(encoding_dim, activation='relu')(encoded1)
+    decoded = Dense(n_time_steps*data_dim, activation='sigmoid')(encoded2)
+    autoencoder = Model(input=input_seq, output=decoded)
+    logistic_regression = Dense(1,activation='sigmoid')(decoded)
+    encoder = Model(input=input_seq, output=logistic_regression)
+    autoencoder.compile(optimizer='adam', loss='mse')
+
+    n_layers = 3
+    name = str(n_layers)+"layers_sdae"
+    print "start Training" + name
+    save_path_of_pdf= save_path + name
+
+    csv_path = save_path + name + ".csv"
+    csv_file = open(csv_path,"w")
+    csv_file.close()
+
+    roc_path = save_path + name + "_roc"
+
+    plot_roc = Plot_ROC_CV(model_name=name, predictor=encoder, roc_path= roc_path,csv_path=csv_path,fig_path=save_path_of_pdf, x_test=test_data, y_test=test_label)
+
+    autoencoder.fit_generator(generate_arrays_of_train(train_data, train_data, batch_size),
+    steps_per_epoch = steps_per_epoch, epochs=epochs, validation_data=generate_arrays_of_validation(validation_data, validation_data, batch_size),
+    validation_steps = validation_steps, max_q_size=500,verbose=1,nb_worker=1,class_weight=class_weight, callbacks=[plot_roc])
+    return 0
+
 class Plot_ROC_CV(keras.callbacks.Callback):
     def __init__(self, model_name, predictor, roc_path,csv_path, fig_path, x_test,y_test):
         super(Plot_ROC_CV, self).__init__()
@@ -177,9 +174,8 @@ class Plot_ROC_CV(keras.callbacks.Callback):
         else:
             probas_ = self.predictor.predict(self.x_test)
         pred = probas_[:, 0]
+
         fpr, tpr, thresholds = roc_curve(self.y_test, pred)
-        pred_class = np.round(np.array(pred)).astype(int)
-        (precision,recall,fbeta_score,support)=precision_recall_fscore_support(self.y_test, pred_class,pos_label=1, average='binary')
 
         roc_auc = auc(fpr, tpr)
         plt.plot(fpr, tpr, lw=lw, color=color, label='ROC (area = %0.2f)' % roc_auc)
@@ -192,7 +188,10 @@ class Plot_ROC_CV(keras.callbacks.Callback):
         plt.legend(loc="lower right")
         plt.savefig(self.fig_path+"_"+str(epoch)+".pdf")
 
-        with open(self.csv_path, "w") as csv_file:
+        pred_class = np.round(np.array(pred)).astype(int)
+        (precision,recall,fbeta_score,support)=precision_recall_fscore_support(self.y_test, pred_class,pos_label=1, average='binary')
+
+        with open(self.csv_path, "a") as csv_file:
             ltw = ",".join(["epoch_"+str(epoch),str(precision), str(recall), str(fbeta_score), str(roc_auc)])
             print ltw
             csv_file.write(ltw + "\n")
@@ -223,31 +222,12 @@ def train_and_plot_roc(classifier, classifier_name, save_path, train_data, train
         pred_class = classifier.predict(test_data)
     # Compute ROC curve and area the curve
     fpr, tpr, thresholds = roc_curve(test_label, pred)
-
-    (precision,recall,fbeta_score,support)=precision_recall_fscore_support(test_label, pred_class, pos_label=1, average='binary')
     roc_auc = auc(fpr, tpr)
     plt.plot(fpr, tpr, lw=lw, color=color,
         label='ROC (area = %0.2f)' % (roc_auc))
 
     plt.plot([0, 1], [0, 1], linestyle='--', lw=lw, color='k', label='Luck')
-    tpr_fpr_path = save_path + classifier_name + "_roc.csv"
-    print "\t".join([str(precision),str(recall),str(fbeta_score),str(roc_auc)])
-
-    len_fpr = len(fpr)
-    out_str = ""
-    for itr in range(len_fpr):
-        out_str += str(fpr[itr]) + "," + str(tpr[itr]) + "\n"
-    outfile = open(tpr_fpr_path,"w")
-    outfile.write(out_str)
-    outfile.close()
-    precision_path = save_path + classifier_name + ".csv"
-    with open(precision_path, "w") as csv_file:
-        ltw = ",".join([str(precision), str(recall), str(fbeta_score), str(roc_auc)])
-        print classifier_name + " " + ltw
-        csv_file.write(ltw + "\n")
-
     pdf_path = save_path + classifier_name + ".pdf"
-    print "write succ of %s" % classifier_name
     plt.xlim([-0.05, 1.05])
     plt.ylim([-0.05, 1.05])
     plt.xlabel('False Positive Rate')
@@ -255,10 +235,29 @@ def train_and_plot_roc(classifier, classifier_name, save_path, train_data, train
     plt.title('Receiver operating characteristic of ' + classifier_name)
     plt.legend(loc="lower right")
     plt.savefig(pdf_path)
+
+    (precision,recall,fbeta_score,support)=precision_recall_fscore_support(test_label, pred_class, pos_label=1, average='binary')
+    precision_path = save_path + classifier_name + ".csv"
+    with open(precision_path, "w") as csv_file:
+        ltw = ",".join([str(precision), str(recall), str(fbeta_score), str(roc_auc)])
+        print classifier_name + " " + ltw
+        csv_file.write(ltw + "\n")
+
+    len_fpr = len(fpr)
+    out_str = ""
+    for itr in range(len_fpr):
+        out_str += str(fpr[itr]) + "," + str(tpr[itr]) + "\n"
+
+    tpr_fpr_path = save_path + classifier_name + "_roc.csv"
+    with open(tpr_fpr_path,"w") as outfile:
+        outfile.write(out_str)
+
+    print "write succ of %s" % classifier_name
+
 #lasso_regression
 def train_and_test_model_with_lasso_regression(data_dim,n_time_steps,train_data, train_label, test_data, test_label,save_path):
     random_state = np.random.RandomState(0)
-    lasso = LogisticRegression(C=10.0, penalty='l1',solver='sag', tol=1e-4,class_weight='balanced', n_jobs=-1,random_state=random_state)
+    lasso = LogisticRegression(C=10.0, penalty='l1',solver='liblinear', tol=1e-4,class_weight='balanced', n_jobs=-1,random_state=random_state)
 
     train_and_plot_roc(lasso,'lasso_regression',save_path,train_data, train_label, test_data, test_label)
 #ridge_regression
@@ -292,41 +291,34 @@ def train_and_test_model_with_ridge_regression(data_dim,n_time_steps,train_data,
 def train_and_test_model_with_random_forest(data_dim,n_time_steps,train_data, train_label, test_data, test_label,save_path):
     # print "RandomForestClassifier"
     rfc = RandomForestClassifier(n_jobs=-1,criterion='entropy',n_estimators=50,class_weight='balanced')
-
     train_and_plot_roc(rfc,'random_forest',save_path,train_data, train_label, test_data, test_label)
 #LinearSVC
 def train_and_test_model_with_svm(data_dim,n_time_steps,train_data, train_label, test_data, test_label,save_path):
     # print "LinearSVC"
     svc = LinearSVC(C=10.0,class_weight='balanced')
-
     train_and_plot_roc(svc,'svm',save_path,train_data, train_label, test_data, test_label)
 #DecisionTree
 def train_and_test_model_with_decision_tree(data_dim,n_time_steps, train_data, train_label, test_data, test_label,save_path):
     # print "DecisionTreeClassifier"
     dtc = DecisionTreeClassifier(max_depth=10, class_weight='balanced')
-
     train_and_plot_roc(dtc,'decision_tree',save_path,train_data, train_label, test_data, test_label)
 #LDA
 def train_and_test_model_with_lda(data_dim,n_time_steps,train_data, train_label, test_data, test_label,save_path):
     # print "LinearDiscriminantAnalysis"
     lda = LinearDiscriminantAnalysis(solver='svd',tol=1e-4)
-
     train_and_plot_roc(lda,'lda',save_path,train_data, train_label, test_data, test_label)
 #QDA
 def train_and_test_model_with_qda(data_dim,n_time_steps,train_data, train_label, test_data, test_label,save_path):
     qda = QuadraticDiscriminantAnalysis(tol=1e-4)
     # print "QuadraticDiscriminantAnalysis"
-
     train_and_plot_roc(qda,'qda',save_path,train_data, train_label, test_data, test_label)
 #AdaBoost
 def train_and_test_model_with_ada_boost(data_dim,n_time_steps,train_data, train_label, test_data, test_label,save_path):
     # print "AdaBoostClassifier"
     ada_boost = AdaBoostClassifier(learning_rate=1.0, n_estimators=50)
-
     train_and_plot_roc(ada_boost,'ada_boost',save_path,train_data, train_label, test_data, test_label)
 #GradientBoostingClassifier
 def train_and_test_model_with_gradient_boosting(data_dim,n_time_steps,train_data, train_label, test_data, test_label,save_path):
     # print "GradientBoostingClassifier"
     gbc = GradientBoostingClassifier(learning_rate=1.0, n_estimators=50)
-
     train_and_plot_roc(gbc,'gradient_boosting',save_path,train_data, train_label, test_data, test_label)

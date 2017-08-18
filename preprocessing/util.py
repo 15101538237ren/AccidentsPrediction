@@ -470,14 +470,14 @@ def get_array_of_seq_of_function(zero_special_list, positive_list, zero_workday_
     return np.array(rtn_arr), np.array(rtn_lbl_arr), np.array(rtn_function_arr)
 
 def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_start, train_dt_end, validation_dt_end, test_dt_end, time_interval, n, n_d, n_w, **params):
-    #区域类型的list
-    region_type_list = range(1, 13)
     train_data = []
     train_label = []
     test_data = []
     test_label = []
     validation_data = []
     validation_label = []
+    train_and_validation_data = []
+    train_and_validation_label = []
     #经度网格数量
     width = params["n_lng"]
     #纬度网格数量
@@ -486,7 +486,7 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
     spatial_interval = params["d_len"]
 
     # 内层每一个样本点的每个时间点对应的数据维度
-    conv_dim = 9
+    # conv_dim = 9
     # data_dim = 4 + conv_dim
 
     if load_traffic_data:
@@ -494,7 +494,6 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
     else:
         added = 0
     data_dim = added + 1+ 4#conv_dim * 2 + 4
-    normalize_data = True
     #卷积操作相关
 
     x_shape = (1, 1, height, width) #n,c,h,w
@@ -527,16 +526,12 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
         if dt_cnt < count_limit or count_limit < 0:
             if dt_str_date in holiday_3_list_flatten:
                 data_now = holiday_3_acc[dt_str]
-                special = 1
             elif dt_str_date in holiday_7_list_flatten:
                 data_now = holiday_7_acc[dt_str]
-                special = 1
             elif dt_str_date in tiaoxiu_list:
                 data_now = tiaoxiu_acc[dt_str]
-                special = 1
             else:
                 data_now = work_day_acc[dt_str]
-                special = 0
 
             data_last_week = data_now[LAST_WEEK_KEY]
             data_yesterday = data_now[YESTERDAY_KEY]
@@ -591,31 +586,22 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
                 else:
                     content_to_append = 0
                 data_arr.append(content_to_append)
-
-            if dt_start < dt_now < train_dt_end:
+            if dt_start < dt_now < validation_dt_end:
                 for i_t in range(height * width):
-                    train_data.append(data_for_now[i_t, :])
-                    train_label.append(data_arr[i_t])
-            elif train_dt_end < dt_now < validation_dt_end:
-                for i_t in range(height * width):
-                    validation_data.append(data_for_now[i_t, :])
-                    validation_label.append(data_arr[i_t])
+                    train_and_validation_data.append(data_for_now[i_t, :])
+                    train_and_validation_label.append(data_arr[i_t])
+                    if dt_start < dt_now < train_dt_end:
+                        train_data.append(data_for_now[i_t, :])
+                        train_label.append(data_arr[i_t])
+                    elif train_dt_end < dt_now < validation_dt_end:
+                        validation_data.append(data_for_now[i_t, :])
+                        validation_label.append(data_arr[i_t])
             else:
                 for i_t in range(height * width):
                     test_data.append(data_for_now[i_t, :])
                     test_label.append(data_arr[i_t])
             print "finish %s" % dt_str
-    # sum_pos_of_train = sum(train_label)
-    # print "total train: %d, pos: %d, rate %.3f" % (len(train_label), sum_pos_of_train, float(sum_pos_of_train)/float(len(train_label)))
-    #
-    # sum_pos_of_validation = sum(validation_label)
-    # print "total validation: %d, pos: %d, rate %.3f" % (len(validation_label), sum_pos_of_validation, float(sum_pos_of_validation)/float(len(validation_label)))
-    #
-    # sum_pos_of_test = sum(test_label)
-    # print "total test: %d, pos: %d, rate %.3f" % (len(test_label), sum_pos_of_test, float(sum_pos_of_test)/float(len(test_label)))
-    #
-    # print "finish get all data"
-    return [train_data, validation_data, test_data, train_label, validation_label, test_label]
+    return [train_data, validation_data, test_data,train_and_validation_data, train_label, validation_label, test_label,train_and_validation_label]
 
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w):
