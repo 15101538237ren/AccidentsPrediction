@@ -167,6 +167,52 @@ def conv_forward_naive(x, w, b, conv_param):
     out[:,f,:,:]+=b[f]
   cache = (x, w, b, conv_param)
   return out, cache
+#获得所有网格对应的中心经纬度
+def get_lng_lat_centers_of_all_grids(spatial_interval):
+    if spatial_interval == 500:
+        d_lat = 0.0042
+        d_lng = 0.006
+    else:
+        d_lat = 0.0084
+        d_lng = 0.012
+    n_lat_delta_origin = (max_lat - min_lat)/d_lat
+    n_lat_delta = int(math.ceil(n_lat_delta_origin)) + 1
+    n_lng_delta_origin = (max_lng - min_lng)/d_lng + 1
+    n_lng_delta = int(math.ceil(n_lng_delta_origin))
+
+    lng_coors = [min_lng + i * d_lng for i in range(n_lng_delta)]
+    lat_coors = [min_lat + i * d_lat for i in range(n_lat_delta)]
+    n_lng = len(lng_coors)-1
+    n_lat = len(lat_coors)-1
+    print "grid size = lng: %d * lat: %d\n" % (n_lng, n_lat)
+    n_lat = len(lat_coors)-1
+    n_lng = len(lng_coors)-1
+    lngs = []
+    lats = []
+    mean_lngs = np.zeros(n_lng * n_lat)
+    mean_lats = np.zeros(n_lng * n_lat)
+
+    for i_lng in range(n_lng):
+        for j_lat in range(n_lat):
+            id = i_lng * n_lat + j_lat
+            min_lng1 = lng_coors[i_lng]
+            max_lng1 = lng_coors[i_lng + 1]
+            min_lat1 = lat_coors[j_lat]
+            max_lat1 = lat_coors[j_lat + 1]
+            center_lng = (min_lng1 + max_lng1)/2.0
+            center_lat = (min_lat1 + max_lat1)/2.0
+            mean_lngs[id] += center_lng
+            mean_lats[id] += center_lat
+
+            lngs.append(center_lng)
+            lats.append(center_lat)
+    mean_lng = mean_lngs.mean()
+    mean_lat = mean_lats.mean()
+    lngs = np.array(lngs) - mean_lng
+    lats = np.array(lats) - mean_lat
+
+    return [lngs, lats]
+
 
 #获取数据库中工作日时段的所有事故相关的数据
 def get_work_day_data(dt_start,dt_end,data_bounds,time_interval, spatial_interval):
@@ -310,22 +356,20 @@ def get_work_day_data_for_train(dt_start,dt_end,time_interval, spatial_interval,
             work_day_accidents_for_train[time_now_str][LAST_WEEK_KEY] = last_week_nw_arr
             #print "len_arr_d: %d" % len(last_week_nw_arr)
     return work_day_accidents_for_train
-
-#生成训练用的数据generator
 def generate_arrays_of_train(data_list, label_list, batch_size):
     len_arr = len(data_list)
     len_lbl = len(label_list)
     if len_arr != len_lbl:
         print "len_arr != len_lbl of train generator"
-    idx_of_train = np.arange(len_arr)
-    np.random.shuffle(idx_of_train)
+    idx_of_test = np.arange(len_arr)
+    np.random.shuffle(idx_of_test)
     while 1:
         X = []
         Y = []
-        for idx in range(len(idx_of_train)):
+        for idx in range(len(idx_of_test)):
             try:
-                X.append(data_list[idx_of_train[idx]])
-                Y.append(label_list[idx_of_train[idx]])
+                X.append(data_list[idx_of_test[idx]])
+                Y.append(label_list[idx_of_test[idx]])
                 if (idx + 1) % batch_size == 0:
                     X_arr = np.array(X)
                     Y_arr = np.array(Y)
@@ -334,7 +378,55 @@ def generate_arrays_of_train(data_list, label_list, batch_size):
                     X = []
                     Y = []
             except IndexError, e:
-                print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_train[idx], len(data_list))
+                print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_test[idx], len(data_list))
+
+def generate_arrays_of_train_aux(data_list, aux_data_list, label_list, batch_size):
+    len_arr = len(data_list)
+    len_lbl = len(label_list)
+    if len_arr != len_lbl:
+        print "len_arr != len_lbl of train generator"
+    idx_of_test = np.arange(len_arr)
+    np.random.shuffle(idx_of_test)
+    while 1:
+        X = []
+        Y = []
+        aux = []
+        for idx in range(len(idx_of_test)):
+            try:
+                X.append(data_list[idx_of_test[idx]])
+                aux.append(aux_data_list[idx_of_test[idx]])
+                Y.append(label_list[idx_of_test[idx]])
+                if (idx + 1) % batch_size == 0:
+                    yield ([np.array(X), np.array(aux)], np.array(Y))
+                    X = []
+                    aux = []
+                    Y = []
+            except IndexError, e:
+                print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_test[idx], len(data_list))
+#生成训练用的数据generator
+def generate_arrays_of_test(data_list, label_list, batch_size):
+    len_arr = len(data_list)
+    len_lbl = len(label_list)
+    if len_arr != len_lbl:
+        print "len_arr != len_lbl of test generator"
+    idx_of_test = np.arange(len_arr)
+    np.random.shuffle(idx_of_test)
+    while 1:
+        X = []
+        Y = []
+        for idx in range(len(idx_of_test)):
+            try:
+                X.append(data_list[idx_of_test[idx]])
+                Y.append(label_list[idx_of_test[idx]])
+                if (idx + 1) % batch_size == 0:
+                    X_arr = np.array(X)
+                    Y_arr = np.array(Y)
+
+                    yield (X_arr, Y_arr)
+                    X = []
+                    Y = []
+            except IndexError, e:
+                print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_test[idx], len(data_list))
 def generate_function_arrays_of_train(data_list, label_list, function_list, batch_size):
     len_arr = len(data_list)
     idx_of_train = np.arange(len_arr)
@@ -372,11 +464,36 @@ def generate_arrays_of_validation(data_list, label_list, batch_size):
                     X_arr = np.array(X)
                     Y_arr = np.array(Y)
                     # print "Val X shape:",
-                    yield (np.array(X_arr), np.array(Y_arr))
+                    yield (X_arr, Y_arr)
                     X = []
                     Y = []
             except IndexError, e:
                 print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_val[idx], len(data_list))
+def generate_arrays_of_validation_aux(data_list,aux_data, label_list, batch_size):
+    len_arr = len(data_list)
+    len_lbl = len(label_list)
+    if len_arr != len_lbl:
+        print "len_arr != len_lbl of validator generator"
+    idx_of_val = np.arange(len_arr)
+    np.random.shuffle(idx_of_val)
+    while 1:
+        X = []
+        Y = []
+        aux = []
+        for idx in range(len_arr):
+            try:
+                X.append(data_list[idx_of_val[idx]])
+                aux.append(aux_data[idx_of_val[idx]])
+                Y.append(label_list[idx_of_val[idx]])
+                if (idx + 1) % batch_size == 0:
+                    # print "Val X shape:",
+                    yield ([np.array(X), np.array(aux)], np.array(Y))
+                    X = []
+                    Y = []
+                    aux = []
+            except IndexError, e:
+                print "idx %d, r_idx: %d, len_data_list: %d" %(idx, idx_of_val[idx], len(data_list))
+
 def generate_function_arrays_of_validation(data_list, label_list,function_list, batch_size):
     len_arr = len(data_list)
     idx_of_val = np.arange(len_arr)
@@ -469,15 +586,24 @@ def get_array_of_seq_of_function(zero_special_list, positive_list, zero_workday_
 
     return np.array(rtn_arr), np.array(rtn_lbl_arr), np.array(rtn_function_arr)
 
-def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_start, train_dt_end, validation_dt_end, test_dt_end, time_interval, n, n_d, n_w, **params):
+def generate_data_for_train_and_test(flatten,load_traffic_data,out_pickle_file_path, dt_start, train_dt_end, validation_dt_end, test_dt_end, time_interval, n, n_d, n_w, **params):
     train_data = []
     train_label = []
+
     test_data = []
     test_label = []
+
     validation_data = []
     validation_label = []
+
     train_and_validation_data = []
     train_and_validation_label = []
+
+    cnt_pos_train = cnt_neg_train = 0
+    cnt_pos_val = cnt_neg_val = 0
+    cnt_pos_tv = cnt_neg_tv = 0
+    cnt_pos_test = cnt_neg_test = 0
+
     #经度网格数量
     width = params["n_lng"]
     #纬度网格数量
@@ -493,7 +619,7 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
         added = 1
     else:
         added = 0
-    data_dim = added + 1+ 4#conv_dim * 2 + 4
+    data_dim = added + 1 + 4#conv_dim * 2 + 4
     #卷积操作相关
 
     x_shape = (1, 1, height, width) #n,c,h,w
@@ -516,6 +642,9 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
 
     dt_cnt = 0
     count_limit = -1
+    [lngs, lats] = get_lng_lat_centers_of_all_grids(spatial_interval)
+
+    [top_indexs,region_normed_accidents_prob] = region_difference_calc(dt_start, test_dt_end, time_interval,spatial_interval, BASE_DIR+'/static/js/region.js', 5)
     for dt_now in dt_list:
         dt_str = dt_now.strftime(second_format)
         dt_str_date = dt_now.strftime(date_format)
@@ -538,29 +667,18 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
             data_last_hours = data_now[LAST_N_HOUR_KEY]
             data_labels = data_now[LABEL_KEY]
 
-            data_merge = data_last_week + data_yesterday
-            data_merge = data_merge + data_last_hours
+            data_merge = data_last_week + data_yesterday + data_last_hours
             len_data_merge = len(data_merge)
-            # data_shape = (height * width, len_data_merge)
-            data_shape = (height * width, len_data_merge, data_dim)
+            data_shape = (height * width, 2)
+            # data_shape = (height * width, len_data_merge, data_dim)
             data_for_now = np.zeros(data_shape)
 
             for idx, data_i in enumerate(data_merge):
-                data_content = np.array([int(item) for item in data_i.content.split(",")])
-                data_for_now[:, idx, 0] = data_content
+                # data_content = np.array([int(item) for item in data_i.content.split(",")])
+                # data_for_now[:, idx, 0] = data_content
 
-                # data_content = data_content.reshape(x_shape)
-                # out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
-                # data_for_now[:, idx] = data_content
-
-                # for w_i in range(width):
-                #     for h_j in range(height):
-                #         wh_id = w_i * height + h_j
-                #         data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
-                # ,  int(data_i.is_weekend)* conv_dim] = out_conv_of_speed[0,0,h_j, w_i,:]
-
-                extra_data = [float(data_i.weather_severity)/5.0,  float(data_i.pm25)/430.0,float(data_i.time_segment)/6.0,int(data_i.is_holiday)]
-                data_for_now[:, idx,1: data_dim-added] = extra_data
+                # extra_data = [float(data_i.weather_severity)/5.0,  float(data_i.pm25)/430.0,float(data_i.time_segment)/6.0,int(data_i.is_holiday)]
+                # data_for_now[:, idx,1: data_dim-added] = extra_data
 
                 if load_traffic_data:
                     grid_speed_nows = Grid_Speed.objects.filter(time_interval=time_interval, spatial_interval=spatial_interval, create_time=data_i.create_time)
@@ -582,26 +700,360 @@ def generate_data_for_train_and_test(load_traffic_data,out_pickle_file_path, dt_
             data_arr =[]
             for item in data_labels.content.split(","):
                 if int(item) > 0:
-                    content_to_append = 1
+                    content_to_append = float(item)
                 else:
                     content_to_append = 0
                 data_arr.append(content_to_append)
-            if dt_start < dt_now < validation_dt_end:
-                for i_t in range(height * width):
-                    train_and_validation_data.append(data_for_now[i_t, :])
-                    train_and_validation_label.append(data_arr[i_t])
+            # if load_traffic_data:
+            #     grid_speed_nows = Grid_Speed.objects.filter(time_interval=time_interval, spatial_interval=spatial_interval, create_time=data_labels.create_time)
+            #     grid_speed_now = np.array([float(item) for item in grid_speed_nows[0].content.split(",")])
+            #     data_for_now[:, -1] = grid_speed_now
+            for i_t in range(height * width):
+                # data_for_now[i_t, 1 : ] = [float(data_labels.weather_severity)/5.0,  float(data_labels.pm25)/430.0,float(data_labels.time_segment)/6.0,int(data_labels.is_holiday),lngs[i_t], lats[i_t]]#[lngs[i_t], lats[i_t]]#
+                # if flatten:
+                #     arr_flatten = list(data_for_now[i_t, :].flatten())
+                #     arr_flatten.extend([lngs[i_t], lats[i_t]])#lngs[i_t], lats[i_t]
+                # else:
+                #     arr_flatten = data_for_now[i_t, :]
+                data_for_now[i_t, 0:] = [lngs[i_t], lats[i_t]]#
+                arr_flatten = data_for_now[i_t, :]
+                dt_label_now = data_arr[i_t]
+                if dt_start < dt_now < validation_dt_end:
+                    # tv_here = False
+                    # if dt_label_now == 1:
+                    #     cnt_pos_tv += 1
+                    #     tv_here = True
+                    # elif cnt_neg_tv < cnt_pos_tv:
+                    #     cnt_neg_tv += 1
+                    #     tv_here = True
+                    # if tv_here:
+                    train_and_validation_data.append(arr_flatten)
+                    train_and_validation_label.append(dt_label_now)
                     if dt_start < dt_now < train_dt_end:
-                        train_data.append(data_for_now[i_t, :])
-                        train_label.append(data_arr[i_t])
+                        # train_here = False
+                        # if dt_label_now == 1:
+                        #     cnt_pos_train += 1
+                        #     train_here = True
+                        # elif cnt_neg_train < cnt_pos_train:
+                        #     cnt_neg_train += 1
+                        #     train_here = True
+                        # if train_here:
+                        train_data.append(arr_flatten)
+                        train_label.append(dt_label_now)
                     elif train_dt_end < dt_now < validation_dt_end:
-                        validation_data.append(data_for_now[i_t, :])
-                        validation_label.append(data_arr[i_t])
-            else:
-                for i_t in range(height * width):
-                    test_data.append(data_for_now[i_t, :])
-                    test_label.append(data_arr[i_t])
+                        # validate_here = False
+                        # if dt_label_now == 1:
+                        #     cnt_pos_val += 1
+                        #     validate_here = True
+                        # elif cnt_neg_val < cnt_pos_val:
+                        #     cnt_neg_val += 1
+                        #     validate_here = True
+                        # if validate_here:
+                        validation_data.append(arr_flatten)
+                        validation_label.append(dt_label_now)
+                else:
+                    # test_here = False
+                    # if dt_label_now == 1:
+                    #     cnt_pos_test += 1
+                    #     test_here = True
+                    # elif cnt_neg_test < cnt_pos_test:
+                    #     cnt_neg_test += 1
+                    #     test_here = True
+                    # if test_here:
+                    test_data.append(arr_flatten)
+                    test_label.append(dt_label_now)
+
             print "finish %s" % dt_str
-    return [train_data, validation_data, test_data,train_and_validation_data, train_label, validation_label, test_label,train_and_validation_label]
+
+    # print "pos_train %d, neg_train %d" %(cnt_pos_train, cnt_neg_train)
+    # print "pos_val %d, neg_val %d" %(cnt_pos_val, cnt_neg_val)
+    # print "pos_test %d, neg_test %d" %(cnt_pos_test, cnt_neg_test)
+    # print "pos_tv %d, neg_tv %d" %(cnt_pos_tv, cnt_neg_tv)
+    return [train_data, validation_data, test_data, train_and_validation_data , train_label, validation_label, test_label, train_and_validation_label]
+
+def generate_data_for_train_and_test_bk(flatten,is_tsne,load_traffic_data,out_pickle_file_path, dt_start, train_dt_end, validation_dt_end, test_dt_end, time_interval, n, n_d, n_w, **params):
+    train_data = []
+    train_label = []
+
+    test_data = []
+    test_label = []
+
+    validation_data = []
+    validation_label = []
+
+    train_and_validation_data = []
+    train_and_validation_label = []
+
+    all_data = []
+    all_label = []
+
+    train_aux_data = []
+    val_aux_data = []
+    test_aux_data = []
+
+    cnt_pos_train = cnt_neg_train = 0
+    cnt_pos_val = cnt_neg_val = 0
+    cnt_pos_tv = cnt_neg_tv = 0
+    cnt_pos_test = cnt_neg_test = 0
+
+    #经度网格数量
+    width = params["n_lng"]
+    #纬度网格数量
+    height = params["n_lat"]
+    #空间间隔长度
+    spatial_interval = params["d_len"]
+
+    # 内层每一个样本点的每个时间点对应的数据维度
+    # conv_dim = 9
+    # data_dim = 4 + conv_dim
+
+    if load_traffic_data:
+        added = 1
+    else:
+        added = 0
+    data_dim = 1 + added # + 4#+ 1# + 4#conv_dim * 2 + 4
+    #卷积操作相关
+
+    x_shape = (1, 1, height, width) #n,c,h,w
+    out_shape = (1, 1, height * width)
+    w_shape = (1, 1, 3, 3) #f,c,hw,ww
+    w = np.array([0.5, 0.5, 0.5, 0.5, 1.0, 0.5, 0.5, 0.5, 0.5,]).reshape(w_shape)
+    b = np.array([0])
+    conv_param = {'stride': 1, 'pad': 1}
+
+    work_day_dt_start = datetime.datetime.strptime("2016-01-12 00:00:00", second_format)
+    work_day_acc = get_work_day_data_for_train(work_day_dt_start,test_dt_end,time_interval, spatial_interval, n, n_d, n_w)
+    holiday_dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
+    tiaoxiu_acc, holiday_3_acc, holiday_7_acc = get_holiday_and_tiaoxiu_data_for_train(holiday_dt_start, test_dt_end,time_interval, spatial_interval, n, n_d, n_w)
+
+    dt_list = []
+    dt_now = dt_start
+    while dt_now < test_dt_end:
+        dt_list.append(dt_now)
+        dt_now += datetime.timedelta(minutes= time_interval)
+
+    dt_cnt = 0
+    count_limit = -1
+    [lngs, lats] = get_lng_lat_centers_of_all_grids(spatial_interval)
+
+    [top_indexs,region_normed_accidents_prob] = region_difference_calc(dt_start, test_dt_end, time_interval,spatial_interval, BASE_DIR+'/static/js/region.js', 5)
+    for dt_now in dt_list:
+        dt_str = dt_now.strftime(second_format)
+        dt_str_date = dt_now.strftime(date_format)
+        if (dt_str_date in holiday_7_list[0]) or (dt_str_date in holiday_3_list[0]) or (dt_str_date == tiaoxiu_list[0]):
+            continue
+        dt_cnt += 1
+
+        if dt_cnt < count_limit or count_limit < 0:
+            if dt_str_date in holiday_3_list_flatten:
+                data_now = holiday_3_acc[dt_str]
+            elif dt_str_date in holiday_7_list_flatten:
+                data_now = holiday_7_acc[dt_str]
+            elif dt_str_date in tiaoxiu_list:
+                data_now = tiaoxiu_acc[dt_str]
+            else:
+                data_now = work_day_acc[dt_str]
+
+            data_last_week = data_now[LAST_WEEK_KEY]
+            data_yesterday = data_now[YESTERDAY_KEY]
+            data_last_hours = data_now[LAST_N_HOUR_KEY]
+            data_labels = data_now[LABEL_KEY]
+
+            data_merge = data_last_week + data_yesterday + data_last_hours
+            len_data_merge = len(data_merge)
+            # data_shape = (height * width, len_data_merge)
+            data_shape = (height * width, len_data_merge, data_dim)
+            data_for_now = np.zeros(data_shape)
+
+            for idx, data_i in enumerate(data_merge):
+                # data_content = np.array([int(item) for item in data_i.content.split(",")])
+                # data_for_now[:, idx, 0] = data_content
+
+                # data_content = data_content.reshape(x_shape)
+                # out_conv= get_conv_kernal_crespond_data(data_content, w, b, conv_param)
+                # data_for_now[:, idx] = data_content
+
+                # for w_i in range(width):
+                #     for h_j in range(height):
+                #         wh_id = w_i * height + h_j
+                #         data_for_now[wh_id,idx, 0: conv_dim] = out_conv[0,0,h_j, w_i,:]
+                # ,  int(data_i.is_weekend)* conv_dim] = out_conv_of_speed[0,0,h_j, w_i,:]
+
+                # extra_data = [float(data_i.weather_severity)/5.0,  float(data_i.pm25)/430.0,float(data_i.time_segment)/6.0,int(data_i.is_holiday)]
+                # data_for_now[:, idx,1: data_dim-added] = extra_data
+
+                if load_traffic_data:
+                    grid_speed_nows = Grid_Speed.objects.filter(time_interval=time_interval, spatial_interval=spatial_interval, create_time=data_i.create_time)
+                    if len(grid_speed_nows):
+                        grid_speed_now = np.array([float(item) for item in grid_speed_nows[0].content.split(",")])
+                        # grid_speed_now = grid_speed_now.reshape(x_shape)
+                        # out_conv_of_speed= get_conv_kernal_crespond_data(grid_speed_now, w, b, conv_param)
+                        data_for_now[:,idx, -1] = grid_speed_now
+
+                        # for w_i in range(width):
+                        #     for h_j in range(height):
+                        #         wh_id = w_i * height + h_j
+                        #         data_for_now[wh_id,idx, conv_dim: 2
+            # data_arr = [1 if int(item) > 0 else 0 for item in data_labels.content.split(",")]
+
+            # print "data_for_now shape: ",
+            # print data_for_now.shape
+
+            data_arr =[]
+            for item in data_labels.content.split(","):
+                if int(item) > 0:
+                    content_to_append = float(item)
+                else:
+                    content_to_append = 0
+                data_arr.append(content_to_append)
+            # for i_t in range(height * width):
+            #     if flatten:
+            #         arr_flatten = list(data_for_now[i_t, :].flatten())
+            #         arr_flatten.extend([region_normed_accidents_prob[i_t],lngs[i_t], lats[i_t]])
+            #     else:
+            #         arr_flatten = data_for_now[i_t, :]
+            #     aux_data = [region_normed_accidents_prob[i_t],lngs[i_t], lats[i_t]]
+            #     if dt_start < dt_now < validation_dt_end:
+            #             train_and_validation_data.append(arr_flatten)
+            #             train_and_validation_label.append(data_arr[i_t])
+            #             if dt_start < dt_now < train_dt_end:
+            #                 train_data.append(arr_flatten)
+            #                 train_aux_data.append(aux_data)
+            #                 train_label.append(data_arr[i_t])
+            #             elif train_dt_end < dt_now < validation_dt_end:
+            #                 validation_data.append(arr_flatten)
+            #                 val_aux_data.append(aux_data)
+            #                 validation_label.append(data_arr[i_t])
+            #     else:
+            #         test_data.append(arr_flatten)
+            #         test_aux_data.append(aux_data)
+            #         test_label.append(data_arr[i_t])
+            #
+            #     if is_tsne:
+            #         if i_t in top_indexs:
+            #             all_data.append(arr_flatten)
+            #             all_label.append(data_arr[i_t])
+
+            for i_t in range(height * width):
+                if flatten:
+                    arr_flatten = [[0]]#list(data_for_now[i_t, :].flatten())
+                    # arr_flatten.extend([lngs[i_t], lats[i_t]])#lngs[i_t], lats[i_t]
+                else:
+                    arr_flatten = [[0]]#data_for_now[i_t, :]
+                dt_label_now = data_arr[i_t]
+                aux_data = [lngs[i_t], lats[i_t]]#
+                if dt_start < dt_now < validation_dt_end:
+                        # tv_here = False
+                        # if dt_label_now == 1:
+                        #     cnt_pos_tv += 1
+                        #     tv_here = True
+                        # elif cnt_neg_tv < cnt_pos_tv:
+                        #     cnt_neg_tv += 1
+                        #     tv_here = True
+                        # if tv_here:
+                        # train_and_validation_data.append(arr_flatten)
+                        # train_and_validation_label.append(dt_label_now)
+                        if dt_start < dt_now < train_dt_end:
+                            # train_here = False
+                            # if dt_label_now == 1:
+                            #     cnt_pos_train += 1
+                            #     train_here = True
+                            # elif cnt_neg_train < cnt_pos_train:
+                            #     cnt_neg_train += 1
+                            #     train_here = True
+                            # if train_here:
+                            train_data.append(arr_flatten)
+                            train_aux_data.append(aux_data)
+                            train_label.append(dt_label_now)
+                        elif train_dt_end < dt_now < validation_dt_end:
+                            # validate_here = False
+                            # if dt_label_now == 1:
+                            #     cnt_pos_val += 1
+                            #     validate_here = True
+                            # elif cnt_neg_val < cnt_pos_val:
+                            #     cnt_neg_val += 1
+                            #     validate_here = True
+                            # if validate_here:
+                            validation_data.append(arr_flatten)
+                            val_aux_data.append(aux_data)
+                            validation_label.append(dt_label_now)
+                else:
+                    # test_here = False
+                    # if dt_label_now == 1:
+                    #     cnt_pos_test += 1
+                    #     test_here = True
+                    # elif cnt_neg_test < cnt_pos_test:
+                    #     cnt_neg_test += 1
+                    #     test_here = True
+                    # if test_here:
+                    test_data.append(arr_flatten)
+                    test_aux_data.append(aux_data)
+                    test_label.append(dt_label_now)
+
+                # if is_tsne:
+                #     if i_t in top_indexs:
+                #         all_data.append(arr_flatten)
+                #         all_label.append(dt_label_now)
+
+            #balancing
+
+            # if dt_start < dt_now < validation_dt_end:
+            #     for i_t in range(height * width):
+            #         dt_label_now = data_arr[i_t]
+            #         if dt_start < dt_now < train_dt_end:
+            #             if dt_label_now == 1:
+            #                 cnt_pos_train += 1
+            #                 train_data.append(data_for_now[i_t, :])
+            #                 train_label.append(data_arr[i_t])
+            #             elif cnt_neg_train < cnt_pos_train:
+            #                 cnt_neg_train += 1
+            #                 train_data.append(data_for_now[i_t, :])
+            #                 train_label.append(data_arr[i_t])
+            #
+            #         elif train_dt_end < dt_now < validation_dt_end:
+            #             if dt_label_now == 1:
+            #                 cnt_pos_val += 1
+            #                 validation_data.append(data_for_now[i_t, :])
+            #                 validation_label.append(data_arr[i_t])
+            #             elif cnt_neg_val < cnt_pos_val:
+            #                 cnt_neg_val += 1
+            #                 validation_data.append(data_for_now[i_t, :])
+            #                 validation_label.append(data_arr[i_t])
+            #         if dt_label_now == 1:
+            #             cnt_pos_tv += 1
+            #             train_and_validation_data.append(data_for_now[i_t, :])
+            #             train_and_validation_label.append(data_arr[i_t])
+            #         elif cnt_neg_tv < cnt_pos_tv:
+            #             cnt_neg_tv += 1
+            #             train_and_validation_data.append(data_for_now[i_t, :])
+            #             train_and_validation_label.append(data_arr[i_t])
+            # # else:
+            #     for i_t in range(height * width):
+            #         dt_label_now = data_arr[i_t]
+            #         if dt_label_now == 1:
+            #             cnt_pos_test += 1
+            #             test_data.append(data_for_now[i_t, :])
+            #             test_label.append(data_arr[i_t])
+            #         elif cnt_neg_test < cnt_pos_test:
+            #             cnt_neg_test += 1
+            #             test_data.append(data_for_now[i_t, :])
+            #             test_label.append(data_arr[i_t])
+            # else:
+            #     for i_t in range(height * width):
+            #         test_data.append(data_for_now[i_t, :])
+            #         test_label.append(data_arr[i_t])
+            print "finish %s" % dt_str
+
+    print "pos_train %d, neg_train %d" %(cnt_pos_train, cnt_neg_train)
+    print "pos_val %d, neg_val %d" %(cnt_pos_val, cnt_neg_val)
+    print "pos_test %d, neg_test %d" %(cnt_pos_test, cnt_neg_test)
+    print "pos_tv %d, neg_tv %d" %(cnt_pos_tv, cnt_neg_tv)
+    if not flatten:
+        return [train_data, validation_data, test_data, train_aux_data, val_aux_data, test_aux_data, train_label, validation_label, test_label]
+    else:
+        return [train_data, validation_data, test_data, train_and_validation_data , train_label, validation_label, test_label, train_and_validation_label]
+
+
 
 #获取调休日和节假日(3天,7天节假日)对应的数据
 def get_holiday_and_tiaoxiu_data_for_train(dt_start, dt_end,time_interval, spatial_interval, n, n_d, n_w):
@@ -1312,6 +1764,98 @@ def get_grid_timeline(datetime_query,out_data_file, sep= 1000,time_interval = 60
     generate_grid_timelines_for_beijing(datetime_query,lng_coors,lat_coors,out_data_file,sep,time_interval)#,min_lat,max_lat,min_lng,max_lng)
     print 'min_lat: %f, max_lat: %f, min_lng: %f , max_lng: %f\n' % (min_lat, max_lat, min_lng, max_lng)
     return min_lat,max_lat,min_lng,max_lng
+def region_difference_calc(start_time, end_time, time_interval,spatial_interval, out_file_path, slice = -1):
+    if spatial_interval == 500:
+        d_lat = 0.0042
+        d_lng = 0.006
+    else:
+        d_lat = 0.0084
+        d_lng = 0.012
+    n_lat_delta_origin = (max_lat - min_lat)/d_lat
+    n_lat_delta = int(math.ceil(n_lat_delta_origin)) + 1
+    n_lng_delta_origin = (max_lng - min_lng)/d_lng + 1
+    n_lng_delta = int(math.ceil(n_lng_delta_origin))
+
+    lng_coors = [min_lng + i * d_lng for i in range(n_lng_delta)]
+    lat_coors = [min_lat + i * d_lat for i in range(n_lat_delta)]
+    n_lng = len(lng_coors)-1
+    n_lat = len(lat_coors)-1
+    print "grid size = lng: %d * lat: %d\n" % (n_lng, n_lat)
+
+    query_of_accidents = Accidents_Array.objects.filter(spatial_interval=spatial_interval,time_interval=time_interval,create_time__range=[start_time,end_time])
+
+    if len(query_of_accidents):
+        print "time_interval %d" % time_interval
+        print "spatial_interval %d" % spatial_interval
+        print "len of query_of_accidents %d" % len(query_of_accidents)
+
+        numpy_sum_accidents = np.zeros(n_lng * n_lat)
+        output_file = open(out_file_path,"w")
+        for accident in query_of_accidents:
+            # zero_c = datetime.datetime.strptime("2016-08-12 19:00:00",second_format)
+            # one_c = datetime.datetime.strptime("2016-08-12 21:30:00",second_format)
+            # if zero_c<= accident.create_time<= one_c:
+            #     print accident.create_time.strftime(second_format)
+            # print "now adding %s" % accident.create_time.strftime(second_format)
+            accidents_arr = np.array([int(item) for item in accident.content.split(",")])
+            numpy_sum_accidents = numpy_sum_accidents + accidents_arr
+
+        max_accident_cnt = numpy_sum_accidents.max()
+        color_array = ((numpy_sum_accidents / max_accident_cnt) * 255.0).astype(int)
+        # print color_array
+
+        sort_indexs = np.argsort(numpy_sum_accidents)
+
+        top_n_index = list(sort_indexs[0:slice])
+        top_n_index.extend(list(sort_indexs[-slice-1:-1]))
+        region_normed_accidents_prob = numpy_sum_accidents / max_accident_cnt
+        if slice > 0:
+            return [top_n_index,region_normed_accidents_prob]
+
+        n_lat = len(lat_coors)-1
+        n_lng = len(lng_coors)-1
+
+        # for it in range(n_lng * n_lat):
+        #     out_str = "delete rectangle_" + str(it) + ";\n"
+        #     output_file.write(out_str)
+
+        for i_lng in range(n_lng):
+            for j_lat in range(n_lat):
+                id = i_lng * n_lat + j_lat
+                min_lng1 = lng_coors[i_lng]
+                max_lng1 = lng_coors[i_lng + 1]
+                min_lat1 = lat_coors[j_lat]
+                max_lat1 = lat_coors[j_lat + 1]
+                center_lng = (min_lng1 + max_lng1)/2.0
+                center_lat = (min_lat1 + max_lat1)/2.0
+
+                # color_i = "rgb("+str(color_array[id])+", 0, 0)"
+                if color_array[id] < 100:
+                    color_value = 0
+                else:
+                    color_value = color_array[id]
+                color_i = "gradient["+str(color_value)+"]"
+                if color_value > 0:
+                    fill_capacity = 1.0
+                else:
+                    fill_capacity = 0.2
+
+                out_str ='''var rectangle_'''+str(id)+''' = new BMap.Polygon([
+                                new BMap.Point(''' + str(min_lng1) + ''',''' + str(min_lat1) + '''),
+                                new BMap.Point(''' + str(max_lng1) + ''',''' + str(min_lat1) + '''),
+                                new BMap.Point(''' + str(max_lng1) + ''',''' + str(max_lat1) + '''),
+                                new BMap.Point(''' + str(min_lng1) + ''',''' + str(max_lat1) + ''')
+                            ], {strokeColor:"black", strokeWeight:0.5, strokeOpacity:0.2,fillColor:'''+color_i+''',fillOpacity:'''+str(fill_capacity)+'''});\n
+                            map.addOverlay(rectangle_'''+str(id)+''');\n'''
+                            # var point_'''+str(id)+''' = new BMap.Point(''' + str(center_lng) + ''',''' + str(center_lat) + ''');\n
+                            # var marker_'''+str(id)+''' = new BMap.Marker(point_'''+str(id)+''');\n
+                            # var label_'''+str(id)+''' = new BMap.Label("'''+str(numpy_sum_accidents[id])+'''", {position: point_'''+str(id)+''',offset: new BMap.Size(20, -10)});\n
+                            # label_'''+str(id)+'''.setStyle({color: "black",fontSize: "12px",border: "0",backgroundColor: "0.0"});\n
+                            # marker_'''+str(id)+'''.setLabel(label_'''+str(id)+''');\n
+                            # map.addOverlay(marker_'''+str(id)+''');'''
+                output_file.write(out_str)
+        output_file.close()
+    return 0
 def get_liuhuan_poi(output_file_path, sep = 500):
     # keyword = '六环'
     # url = 'http://api.map.baidu.com/place/v2/search?'

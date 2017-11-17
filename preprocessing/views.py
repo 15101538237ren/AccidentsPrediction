@@ -5,9 +5,12 @@ from django.http import JsonResponse
 from import_data import *
 from django.core.mail import send_mail
 from util import *
+from sklearn.manifold import TSNE
+import shutil,random
 from collections import Counter
 from imblearn.under_sampling import RandomUnderSampler
 from AccidentsPrediction.settings import BASE_DIR
+from imblearn.combine import SMOTEENN as sm
 from correlation_analysis import f_k_tau, surface_plot_of_f_k_tau, export_accidents_array_to_xlxs,calc_C_t,get_all_data_for_analysis
 from route_related import get_all_routes, import_all_route_info_to_db, import_all_route_speed_to_db,validate_and_normalize_route,create_grid_speed, fix_zero_value_or_data_error_of
 from class_for_shape import Rect, Vector2, CheckRectLine
@@ -111,9 +114,15 @@ def index(request):
     # dt_start = datetime.datetime.strptime("2016-01-13 00:00:00", second_format)
     dt_start = datetime.datetime.strptime("2016-08-08 00:00:00", second_format)
     # dt_end = datetime.datetime.strptime("2016-01-01 23:59:59",second_format)
+
+    # train_dt_end = datetime.datetime.strptime("2016-05-01 00:00:00",second_format)
+    # validation_dt_end = datetime.datetime.strptime("2016-06-01 00:00:00",second_format)
+    # test_dt_end = datetime.datetime.strptime("2016-07-01 00:00:00",second_format)
+
     train_dt_end = datetime.datetime.strptime("2016-08-23 00:00:00",second_format)
     validation_dt_end = datetime.datetime.strptime("2016-08-26 00:00:00",second_format)
     test_dt_end = datetime.datetime.strptime("2016-09-01 00:00:00",second_format)
+
     # dt_end = datetime.datetime.strptime("2016-01-02 00:00:00",second_format)
     # dt_end = datetime.datetime.strptime("2017-02-28 23:59:59",second_format)
     # outpkl_file_path = BASE_DIR + '/preprocessing/data/lstm_data_'+dt_start.strftime(date_format)+'_'+dt_end.strftime(date_format)+'_'+str(time_interval)+'_'+str(spatial_interval)+'.pkl'
@@ -142,69 +151,180 @@ def index(request):
     # surface_plot_of_f_k_tau(out_csv_path, rtn_val_list, load)
 
     print "base_dir: %s" % BASE_DIR
-
-    load_traffic_data = True
+    load_traffic_data = False
     if load_traffic_data:
         added = 1
     else:
         added = 0
-    data_dim = 1 + 4 + added
-    save_path = BASE_DIR+'/preprocessing/data/'
-    time_intervals = [60]#, 45, 30, 15]
-    spatial_intervals = [param_1000]#, param_500]
+    data_dim = 1 + added #+ 4 #+1
+    time_intervals = [30, 60]#,30,,30,6045,60,15,30,60]
+    spatial_intervals = [param_1000]#param_500]
+    nds = [1]
     for time_interval in time_intervals:
         for spatial_interval in spatial_intervals:
-            n = 4
-            n_d = 3
-            n_w = 3
+            for nd in nds:
+                # pass
+                dir_name = str(time_interval) + "_" + str(spatial_interval['d_len']) + "_" + str(nd)
+                save_path = BASE_DIR+'/preprocessing/data/' + dir_name + "/"
+                #存在则删除
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path)
+                    # shutil.rmtree(save_path)
 
-            n_time_steps = n + (n_d + n_w ) * 2 + 2
-            [train_data, validation_data, test_data,train_data_tradition, train_label, validation_label, test_label,train_label_tradition] = generate_data_for_train_and_test(load_traffic_data,outpkl_file_path,dt_start,train_dt_end, validation_dt_end, test_dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **spatial_interval)
-            counter_train = Counter(train_label)
-            print('Testing target statistics: {}'.format(Counter(test_label)))
-            print('Pre-merging training target statistics: {}'.format(counter_train))
-            print('Pre-merging validation target statistics: {}'.format(Counter(validation_label)))
-            train_weight_class = dict(counter_train)
-            print "n,n_d,n_w:%d%d%d,data_dim:%d\ttime_interval:%d\tspatial_interval:%d" %(n,n_d,n_w,data_dim,time_interval,spatial_interval['d_len'])
+                pkl_path = save_path + "geo.pkl"#"data_for_balanced_"+str(time_interval)+"_"+str(nd)+"_lstm.pkl"
+                n = 1
+                n_w = 1
+                n_d = 1
+                n_time_steps = n + (n_d + n_w ) * 2 + 2
+                is_tne = True
+                flatten = True
 
-            # train_and_test_model_with_lstm(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight=train_weight_class)
-            # train_and_test_model_with_gru(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight=train_weight_class)
+                load = False
+                if load:
+                    print "start load"
+                    pkl_file = open(pkl_path,"rb")
+                    train_data = pickle.load(pkl_file)
+                    validation_data = pickle.load(pkl_file)
+                    test_data = pickle.load(pkl_file)
 
-            "start flatten"
-            train_data_tradition_flatten = np.array([item.flatten() for item in train_data_tradition])
-            train_data_tradition = train_data_tradition_flatten
+                    # train_aux_data =  pickle.load(pkl_file)
+                    # val_aux_data = pickle.load(pkl_file)
+                    # test_aux_data = pickle.load(pkl_file)
 
-            train_data_flatten = np.array([item.flatten() for item in train_data])
-            train_data = train_data_flatten
+                    train_label = pickle.load(pkl_file)
+                    validation_label = pickle.load(pkl_file)
+                    test_label = pickle.load(pkl_file)
 
-            validation_data_flatten = np.array([item.flatten() for item in validation_data])
-            validation_data = validation_data_flatten
+                    train_and_validation_data = pickle.load(pkl_file)
+                    train_and_validation_label = pickle.load(pkl_file)
+                    print "load finish"
+                else:
+                    # [train_data, validation_data, test_data, train_aux_data, val_aux_data, test_aux_data, train_label, validation_label, test_label] = generate_data_for_train_and_test_bk(flatten,is_tne,load_traffic_data,outpkl_file_path,dt_start,train_dt_end, validation_dt_end, test_dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **spatial_interval)
+                    [train_data, validation_data, test_data, train_and_validation_data , train_label, validation_label, test_label, train_and_validation_label] = generate_data_for_train_and_test(flatten,load_traffic_data,outpkl_file_path,dt_start,train_dt_end, validation_dt_end, test_dt_end, time_interval= time_interval, n = n, n_d = n_d, n_w = n_w, **spatial_interval)
+                    # print "start pkling"
+                    # outfile = open(pkl_path, 'wb')
+                    # pickle.dump(train_data,outfile,-1)
+                    # pickle.dump(validation_data,outfile,-1)
+                    # pickle.dump(test_data,outfile,-1)
+                    # #
+                    # # pickle.dump(train_aux_data,outfile,-1)
+                    # # pickle.dump(val_aux_data,outfile,-1)
+                    # # pickle.dump(test_aux_data,outfile,-1)
+                    #
+                    # pickle.dump(train_label,outfile,-1)
+                    # pickle.dump(validation_label,outfile,-1)
+                    # pickle.dump(test_label,outfile,-1)
+                    #
+                    # pickle.dump(train_and_validation_data,outfile,-1)
+                    # pickle.dump(train_and_validation_label,outfile,-1)
+                    #
+                    # outfile.close()
+                    #
+                    # print "dump finished!"
 
-            test_data_flatten = np.array([item.flatten() for item in test_data])
-            test_data = test_data_flatten
-            "end flatten!"
+                counter_train = Counter(train_label)
+                print('Testing target statistics: {}'.format(Counter(test_label)))
+                print('Pre-merging training target statistics: {}'.format(counter_train))
+                print('Pre-merging validation target statistics: {}'.format(Counter(validation_label)))
 
-            # train_and_test_model_with_3layer_sdae(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label, class_weight=train_weight_class)
+                train_weight_class = {0:1, 1:1}
 
-            train_and_test_model_with_lasso_regression(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
-            train_and_test_model_with_ridge_regression(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
-            train_and_test_model_with_decision_tree(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
-            train_and_test_model_with_svm(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
-            train_and_test_model_with_random_forest(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
-            print('Pre-undersampling Training target statistics: {}'.format(Counter(train_label_tradition)))
-            # Apply the random under-sampling
-            rus = RandomUnderSampler(return_indices=True)
-            train_data_resampled, train_label_resampled, idx_resampled = rus.fit_sample(train_data_tradition, train_label_tradition)
+                print np.array(train_data).shape
 
-            print('After-undersampling Training target statistics: {}'.format(Counter(train_label_resampled)))
-            train_and_test_model_with_lda(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
-            train_and_test_model_with_ada_boost(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
-            train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, train_data_resampled, train_label_resampled, test_data, test_label, save_path)
+                print "n,n_d,n_w:%d%d%d,data_dim:%d\ttime_interval:%d\tspatial_interval:%d" %(n,n_d,n_w,data_dim,time_interval,spatial_interval['d_len'])
 
-            del train_data_tradition, train_data_tradition_flatten, train_label_tradition,train_data,train_data_flatten, validation_data,validation_data_flatten, test_data, test_data_flatten, train_label, validation_label, test_label
+                # train_and_test_model_with_lasso_regression(data_dim,n_time_steps, train_and_validation_data, train_and_validation_label, test_data, np.array(test_label), save_path)
+                # train_and_test_model_with_decision_tree_regressor(data_dim,n_time_steps, train_and_validation_data, np.array(train_and_validation_label), test_data, np.array(test_label), save_path)
+                (mae, mre, rmse) = train_and_test_model_with_svr(data_dim,n_time_steps, train_and_validation_data, np.array(train_and_validation_label), test_data, np.array(test_label), save_path)
+                dt_now = str(datetime.datetime.now())
+                send_mail('Finish', 'Finish SVR '+ str(time_interval) + ' with ' + str(mae)+' '+str(mre)+ ' '+str(rmse)+ ' at ' + dt_now, '770728121@qq.com', ['renhongleiz@126.com'],fail_silently=False)
+                # train_and_test_model_with_dnn(data_dim,n_time_steps, save_path, train_data, validation_data, np.array(test_data), train_label, validation_label, np.array(test_label),class_weight=train_weight_class)
+                # train_and_test_model_with_3layer_sdae(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, np.array(train_label), np.array(validation_label), np.array(test_label), class_weight=train_weight_class)
 
-    dt_now = str(datetime.datetime.now())
-    send_mail('Finish', 'Finish Jobs at ' + dt_now, '770728121@qq.com', ['renhongleiz@126.com'],fail_silently=False)
+
+                # train_and_test_model_with_lstm(2, [train_aux_data, val_aux_data, test_aux_data], data_dim,n_time_steps, save_path, train_data, validation_data, np.array(test_data), train_label, validation_label, np.array(test_label),class_weight=train_weight_class)
+                # train_data_resampled, train_label_resampled = sm.fit_sample(train_data, train_label)
+                # val_data_resampled, val_label_resampled = sm.fit_sample(validation_data, validation_label)
+                #
+                #
+                #
+                # pickle.dump(val_data_resampled,outfile,-1)
+                # pickle.dump(val_label_resampled,outfile,-1)
+                # outfile.close()
+
+                # print('Post training target statistics: {}'.format(Counter(train_label_resampled)))
+                # print('Post validation target statistics: {}'.format(Counter(val_label_resampled)))
+
+                # train_weight_class = dict(Counter(train_label_resampled))
+                #
+                # print "n,n_d,n_w:%d%d%d,data_dim:%d\ttime_interval:%d\tspatial_interval:%d" %(n,n_d,n_w,data_dim,time_interval,spatial_interval['d_len'])
+                # train_and_test_model_with_lstm(data_dim,n_time_steps, save_path, train_data_resampled, val_data_resampled, np.array(test_data), train_label_resampled, val_label_resampled, np.array(test_label),class_weight=train_weight_class)
+                # train_and_test_model_with_lstm(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight=train_weight_class)
+                # train_and_test_model_with_gru(data_dim,n_time_steps, save_path, train_data, validation_data, test_data, train_label, validation_label, test_label,class_weight=train_weight_class)
+
+                # print "start flatten"
+                # train_data_tradition_flatten = np.array([item.flatten() for item in train_data_tradition])
+                # train_data_tradition = train_data_tradition_flatten
+
+                # train_data_flatten = np.array([item.flatten() for item in train_data])
+                # train_data = train_data_flatten
+
+                # validation_data_flatten = np.array([item.flatten() for item in validation_data])
+                # validation_data = validation_data_flatten
+                #
+                # test_data_flatten = np.array([item.flatten() for item in test_data])
+                # test_data = test_data_flatten
+                # print "end flatten!"
+                # t0 = time()
+                # X_embedded = TSNE(n_components=2, random_state=0).fit_transform(train_data_tradition)
+                #
+                # pickle.dump(X_embedded,outfile,-1)
+                # colors = np.array(["r" if item_i else "b" for item_i in train_label_tradition])
+                # pickle.dump(colors,outfile,-1)
+                # outfile.close()
+                # t1 = time()
+                # print("t-SNE: %.2g sec" % (t1 - t0))
+                #
+                # print "X_embedded shape ",
+                # print X_embedded.shape
+                # areas = np.array([1.5 if item_i else 0.5 for item_i in train_label_tradition])
+                # areas2 = np.pi * areas **2
+                # # stars = np.array(["o" if item_i else "*" for item_i in train_label_tradition])
+                # plt.clf()
+                # plt.cla()
+                # out_printing_path = save_path + "tsne.pdf"
+                # plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=areas2)
+                # plt.title("t-SNE")
+                # plt.axis('tight')
+                # plt.savefig(out_printing_path)
+
+
+                #
+                #
+                # print('Pre-undersampling Training target statistics: {}'.format(Counter(train_label_tradition)))
+                # Apply the random under-sampling
+                # rus = RandomUnderSampler(return_indices=True)
+                # print "start val sampling"
+                # test_data_resampled, test_label_resampled, idx_test_resampled = rus.fit_sample(test_data, test_label)
+                # print "start merge sampling"
+                # train_data_resampled, train_label_resampled, idx_resampled = rus.fit_sample(train_data_tradition, train_label_tradition)
+
+                # print('After-undersampling Training target statistics: {}'.format(Counter(train_deep_data_resampled)))
+                #
+
+
+                #
+                # train_and_test_model_with_ridge_regression(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+                # train_and_test_model_with_svm(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+                # train_and_test_model_with_random_forest(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+                #
+                # train_and_test_model_with_lda(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+                # train_and_test_model_with_ada_boost(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+                # train_and_test_model_with_gradient_boosting(data_dim,n_time_steps, train_data_tradition, train_label_tradition, test_data, test_label, save_path)
+
+                # del train_data_tradition, train_data_tradition_flatten, train_label_tradition,train_data,train_data_flatten, validation_data,validation_data_flatten, test_data, test_data_flatten, train_label, validation_label, test_label
+
+
 
     return render_to_response('prep/index.html', locals(), context_instance=RequestContext(request))
 def grid(request):
@@ -236,6 +356,15 @@ def grid_timeline(request):
         response_dict["code"] = 0
         response_dict["addr"] = addr
         return JsonResponse(response_dict)
+#统计不同区域的事故量差异
+def region_difference(request):
+    time_interval = 60
+    spatial_interval = 1000
+    start_time = datetime.datetime.strptime("2016-01-01 00:00:00",second_format)
+    end_time = datetime.datetime.strptime("2017-01-01 00:00:00",second_format)
+    out_js_file = BASE_DIR+'/static/js/region.js'
+    region_difference_calc(start_time, end_time, time_interval,spatial_interval, out_js_file)
+    return render_to_response('prep/region_diff.html', locals(), context_instance=RequestContext(request))
 def timeline(request):
     start_time = datetime.datetime.strptime("2016-01-01 00:00:00",second_format)
     end_time = datetime.datetime.strptime("2017-03-01 00:00:00",second_format)
