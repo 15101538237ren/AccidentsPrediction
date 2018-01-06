@@ -17,8 +17,8 @@ from class_for_shape import Rect, Vector2, CheckRectLine
 from classifier import *
 # Create your views here.
 def visualize_poi_of_accident(request):
-    dt_start = datetime.datetime.strptime("2016-01-01 00:00:00", second_format)
-    dt_end = datetime.datetime.strptime("2016-03-01 00:00:00",second_format)
+    dt_start = datetime.datetime.strptime("2017-01-01 00:00:00", second_format)
+    dt_end = datetime.datetime.strptime("2017-01-03 00:00:00",second_format)
     outfile_path = BASE_DIR+'/static/js/accident.js'
     get_accident_for_visualization(dt_start, dt_end,outfile_path)
     return render_to_response('prep/beijing.html', locals(), context_instance=RequestContext(request))
@@ -361,7 +361,7 @@ def region_difference(request):
     time_interval = 60
     spatial_interval = 1000
     start_time = datetime.datetime.strptime("2016-01-01 00:00:00",second_format)
-    end_time = datetime.datetime.strptime("2017-01-01 00:00:00",second_format)
+    end_time = datetime.datetime.strptime("2016-12-31 00:00:00",second_format)
     out_js_file = BASE_DIR+'/static/js/region.js'
     region_difference_calc(start_time, end_time, time_interval,spatial_interval, out_js_file)
     return render_to_response('prep/region_diff.html', locals(), context_instance=RequestContext(request))

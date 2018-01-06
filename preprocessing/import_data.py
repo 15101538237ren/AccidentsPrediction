@@ -16,7 +16,7 @@ def get_accident_for_visualization(dt_start,dt_end,out_file_path):
         lng = round(float(call_incidence.longitude),6)
         res.append([lng, lat, 1])
     res_app = []
-    app_accidents = Call_Incidence.objects.filter(create_time__range=[dt_start ,dt_start + datetime.timedelta(days=20)])
+    app_accidents = App_Incidence.objects.filter(create_time__range=[dt_start ,dt_start + datetime.timedelta(days=20)])
     for app_accident in app_accidents:
         lat = round(float(app_accident.latitude),6)
         lng = round(float(app_accident.longitude),6)

@@ -1830,15 +1830,16 @@ def region_difference_calc(start_time, end_time, time_interval,spatial_interval,
                 center_lat = (min_lat1 + max_lat1)/2.0
 
                 # color_i = "rgb("+str(color_array[id])+", 0, 0)"
-                if color_array[id] < 100:
-                    color_value = 0
-                else:
-                    color_value = color_array[id]
+                # if color_array[id] < 100:
+                #     color_value = 0
+                # else:
+                color_value = color_array[id]
                 color_i = "gradient["+str(color_value)+"]"
-                if color_value > 0:
-                    fill_capacity = 1.0
-                else:
-                    fill_capacity = 0.2
+                fill_capacity = 1.0
+                # if color_value > 0:
+                #     fill_capacity = 1.0
+                # else:
+                #     fill_capacity = 0.2
 
                 out_str ='''var rectangle_'''+str(id)+''' = new BMap.Polygon([
                                 new BMap.Point(''' + str(min_lng1) + ''',''' + str(min_lat1) + '''),
@@ -1855,6 +1856,7 @@ def region_difference_calc(start_time, end_time, time_interval,spatial_interval,
                             # map.addOverlay(marker_'''+str(id)+''');'''
                 output_file.write(out_str)
         output_file.close()
+        print "finish!"
     return 0
 def get_liuhuan_poi(output_file_path, sep = 500):
     # keyword = '六环'

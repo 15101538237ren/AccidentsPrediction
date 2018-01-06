@@ -22,27 +22,29 @@
 
 	// 百度地图API功能
 	var map = new BMap.Map("allmap");
-	map.centerAndZoom(new BMap.Point(116.404, 39.915), 11);     // 初始化地图,设置中心点坐标和地图级别
-    map.enableScrollWheelZoom();                        //启用滚轮放大缩小
+	map.centerAndZoom(new BMap.Point(116.404, 39.915), 13);     // 初始化地图,设置中心点坐标和地图级别
+    map.enableScrollWheelZoom();
+    //启用滚轮放大缩小
     var top_left_control = new BMap.ScaleControl({anchor: BMAP_ANCHOR_BOTTOM_LEFT});// 左上角，添加比例尺
 	var top_left_navigation = new BMap.NavigationControl({anchor: BMAP_ANCHOR_BOTTOM_LEFT});  //左上角，添加默认缩放平移控件
     map.addControl(top_left_control);
     map.addControl(top_left_navigation);
     map.enableKeyboard();
-    map.setMapStyle({style:'midnight'});
+    map.setMapStyle({style:'grayscale'});
     $.get(road_addr).done(function (rtn_json) {
         roads_dict = rtn_json;
         for (var route_id in roads_dict) {
-            var random_num = Math.random();
-            var color = "green";
-            if (random_num > 0.5 && random_num < 0.6)
-            {
-                color = "yellow";
-            }
-            else if (random_num > 0.6)
-            {
-                color = "red";
-            }
+            {#var random_num = Math.random();#}
+            var color = "blue";
+            {#if (random_num > 0.5 && random_num < 0.6)#}
+            {#{#}
+            {#    color = "yellow";#}
+            {##}
+            {#else if (random_num > 0.6)#}
+            {#{#}
+            {#    color = "red";#}
+            {##}
+{#            color = "red";#}
             var route_info = roads_dict[route_id];
             var valid = route_info["valid"];
 {#            if (valid == 1)#}
