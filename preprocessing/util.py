@@ -1928,6 +1928,7 @@ def get_all_dt_in_call_incidences_db(start_time,end_time,time_interval=60):
         ret_list.append(tmp_dt.strftime(second_format))
         tmp_dt += datetime.timedelta(minutes=time_interval)
     return ret_list
+
 #获得指定时间段的事故,并写道文件中
 def get_call_incidences(dt_start, dt_end):
     call_incidences = Call_Incidence.objects.filter(create_time__range=[dt_start,dt_end])
@@ -1947,3 +1948,16 @@ def get_call_incidences(dt_start, dt_end):
     file_to_wrt.write(js_str)
 
     file_to_wrt.close()
+def get_call_accidents_count_for_each_hour(dt_start, dt_end, delta_t = 60):
+    acc_arr = []
+    dt_now = dt_start
+    while (dt_now <= dt_end):
+        call_incidences = Call_Incidence.objects.filter(create_time__range=[dt_now, dt_now + datetime.timedelta(minutes=delta_t)])
+        acc_arr.append(dt_now.strftime(minute_format) +"\t" + str(len(call_incidences)))
+        print "%s\t %d" %(dt_now.strftime(minute_format), len(call_incidences))
+        dt_now = dt_now + datetime.timedelta(minutes=delta_t)
+
+    file_to_wrt_path = BASE_DIR + os.sep + "static" + os.sep + "accident_count.tsv"
+    with open(file_to_wrt_path,"w") as file_to_wrt:
+        file_to_wrt.write("\t".join(acc_arr))
+        print "write %s successful" % file_to_wrt_path

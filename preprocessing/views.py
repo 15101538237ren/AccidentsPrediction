@@ -68,6 +68,12 @@ def import_data_to_db():
     air_file = BASE_DIR+'/preprocessing/data/air_houbao.csv'
     import_air_quality_to_db(air_file)
 def index(request):
+
+    from_dt = datetime.datetime.strptime("2016-08-28 00:00:00", second_format)
+    end_dt = from_dt + datetime.timedelta(hours=24 * 21)
+    print end_dt
+    get_call_accidents_count_for_each_hour(from_dt, end_dt)
+
     outpkl_file_path = BASE_DIR+'/preprocessing/data/accidents.pkl'
     #partition_geopoints_by_time(outpkl_file_path)
     # get_all_accidents_from_db(outpkl_file_path)
