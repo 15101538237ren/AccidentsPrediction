@@ -34,8 +34,17 @@
     $.get(road_addr).done(function (rtn_json) {
         roads_dict = rtn_json;
         for (var route_id in roads_dict) {
-            {#var random_num = Math.random();#}
-            var color = "blue";
+            var random_num = Math.random();
+            var color = '';
+            if (random_num > 0.95)
+            {
+                color = 'rgba(255,0,0,0.9)'
+            }
+            else
+            {
+                color = 'rgba(255,255,255,0)';
+            }
+            //"blue";
             {#if (random_num > 0.5 && random_num < 0.6)#}
             {#{#}
             {#    color = "yellow";#}

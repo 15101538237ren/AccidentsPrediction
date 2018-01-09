@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import sys,os,requests,urllib,json,math,pickle,datetime,simplejson,decimal
+import sys,os,requests,urllib,json,math,pickle,datetime,simplejson,decimal,random
 from  models import *
 from import_data import unicode_csv_reader
 import numpy as np #导入Numpy
@@ -1458,12 +1458,20 @@ def generate_grid_timelines_for_beijing(datetime_query,lng_coors,lat_coors,out_d
                 # center_lat = (min_lat1 + max_lat1)/2.0
                 accident_cnt_of_id = accidents_arr[id]
 
-                if accident_cnt_of_id == 0:
-                    color = 'white'
-                elif accident_cnt_of_id == 1:
-                    color = 'orange'
+                # if accident_cnt_of_id == 0:
+                #     color = 'white'
+                # elif accident_cnt_of_id == 1:
+                #     color = 'orange'
+                # else:
+                #     color = 'red'
+                random_num = random.random()
+                if random_num > 0.85:
+                    color= 'red'
+                elif random_num > 0.65 and random_num < 0.85:
+                    color = 'yellow'
                 else:
-                    color = 'red'
+                    color = 'green'
+                # color_now = 'rgba(,,,)'
                 out_str ='''var rectangle_'''+str(id)+''' = new BMap.Polygon([
                                 new BMap.Point(''' + str(min_lng1) + ''',''' + str(min_lat1) + '''),
                                 new BMap.Point(''' + str(max_lng1) + ''',''' + str(min_lat1) + '''),
@@ -1835,7 +1843,7 @@ def region_difference_calc(start_time, end_time, time_interval,spatial_interval,
                 # else:
                 color_value = color_array[id]
                 color_i = "gradient["+str(color_value)+"]"
-                fill_capacity = 1.0
+                fill_capacity = 0.7
                 # if color_value > 0:
                 #     fill_capacity = 1.0
                 # else:
@@ -1846,7 +1854,7 @@ def region_difference_calc(start_time, end_time, time_interval,spatial_interval,
                                 new BMap.Point(''' + str(max_lng1) + ''',''' + str(min_lat1) + '''),
                                 new BMap.Point(''' + str(max_lng1) + ''',''' + str(max_lat1) + '''),
                                 new BMap.Point(''' + str(min_lng1) + ''',''' + str(max_lat1) + ''')
-                            ], {strokeColor:"black", strokeWeight:0.5, strokeOpacity:0.2,fillColor:'''+color_i+''',fillOpacity:'''+str(fill_capacity)+'''});\n
+                            ], {strokeColor:"red", strokeWeight:1, strokeOpacity:1,fillColor:'''+color_i+''',fillOpacity:'''+str(fill_capacity)+'''});\n
                             map.addOverlay(rectangle_'''+str(id)+''');\n'''
                             # var point_'''+str(id)+''' = new BMap.Point(''' + str(center_lng) + ''',''' + str(center_lat) + ''');\n
                             # var marker_'''+str(id)+''' = new BMap.Marker(point_'''+str(id)+''');\n
